@@ -16,10 +16,14 @@ the way the gateway does, ``<provider>/<model>``:
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from ...broker_only import BROKER_MODEL_PREFIXES, is_broker_model
-from ..llm_interface import LLMInterface
+from ...config import get_config
+from ..llm_interface import LLMInterface, ProviderContentPolicyError, is_gateway_refusal
+
+logger = logging.getLogger(__name__)
 
 # The SDKs refuse an empty key; a gateway started with --no-auth ignores whatever arrives.
 NO_AUTH_PLACEHOLDER_KEY = "broker-gateway"
@@ -48,6 +52,62 @@ def gateway_root(base_url: str) -> str:
     return root
 
 
+class RefusalFallbackLLM(LLMInterface):
+    """A broker model that hands a call it refused to a second broker model.
+
+    A refusal (the gateway's ``502 Refusal (cyber)``, or a refusal stop reason) is a function of the
+    content: retrying the same model repeats it, and without a fallback the message is never
+    extracted. The fallback model sees the same request; if it refuses too, the primary's refusal is
+    raised. Every other error passes through untouched.
+    """
+
+    def __init__(self, primary: LLMInterface, fallback: LLMInterface) -> None:
+        super().__init__(
+            provider=primary.provider,
+            api_key=primary.api_key,
+            base_url=primary.base_url,
+            model=primary.model,
+            reasoning_effort=primary.reasoning_effort,
+            timeout=primary.timeout,
+        )
+        self.primary = primary
+        self.fallback = fallback
+
+    async def verify_connection(self) -> None:
+        await self.primary.verify_connection()
+
+    async def call(self, messages: list[dict[str, str]], *args: Any, **kwargs: Any) -> Any:
+        try:
+            return await self.primary.call(messages, *args, **kwargs)
+        except Exception as error:
+            if not (isinstance(error, ProviderContentPolicyError) or is_gateway_refusal(error)):
+                raise
+            scope = kwargs.get("scope", "memory")
+            logger.warning(
+                "[%s] %s refused the call (%s); answering it with %s",
+                scope,
+                self.primary.model,
+                str(error)[:160],
+                self.fallback.model,
+            )
+            try:
+                return await self.fallback.call(messages, *args, **kwargs)
+            except Exception as fallback_error:
+                if isinstance(fallback_error, ProviderContentPolicyError) or is_gateway_refusal(fallback_error):
+                    raise error from fallback_error
+                raise
+
+    async def supports_batch_api(self) -> bool:
+        return False
+
+    def supports_vision(self) -> bool | None:
+        return self.primary.supports_vision() and self.fallback.supports_vision()
+
+    async def cleanup(self) -> None:
+        await self.primary.cleanup()
+        await self.fallback.cleanup()
+
+
 def create_broker_llm(
     *,
     api_key: str | None,
@@ -60,7 +120,40 @@ def create_broker_llm(
     cache_affinity: str | None = None,
     openai_service_tier: str | None = None,
 ) -> LLMInterface:
-    """The provider that reaches ``model`` through the gateway at ``base_url``."""
+    """The provider that reaches ``model`` through the gateway at ``base_url``.
+
+    With ``HINDSIGHT_API_BROKER_REFUSAL_FALLBACK_MODEL`` set, a call the model refuses is answered by
+    that model instead (see :class:`RefusalFallbackLLM`).
+    """
+    kwargs = dict(
+        api_key=api_key,
+        base_url=base_url,
+        reasoning_effort=reasoning_effort,
+        timeout=timeout,
+        extra_body=extra_body,
+        default_headers=default_headers,
+        cache_affinity=cache_affinity,
+        openai_service_tier=openai_service_tier,
+    )
+    primary = _create_broker_model(model=model, **kwargs)
+    fallback_model = get_config().broker_refusal_fallback_model
+    if not fallback_model or fallback_model == model:
+        return primary
+    return RefusalFallbackLLM(primary, _create_broker_model(model=fallback_model, **kwargs))
+
+
+def _create_broker_model(
+    *,
+    api_key: str | None,
+    base_url: str,
+    model: str,
+    reasoning_effort: str | None,
+    timeout: float | None,
+    extra_body: dict[str, Any] | None,
+    default_headers: dict[str, str] | None,
+    cache_affinity: str | None,
+    openai_service_tier: str | None,
+) -> LLMInterface:
     family = broker_model_family(model)
     root = gateway_root(base_url)
     key = api_key or NO_AUTH_PLACEHOLDER_KEY

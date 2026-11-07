@@ -6,6 +6,7 @@ override is validated) unless:
 * every language-model provider the server can call, for any operation, is ``broker``: the provider
   that sends the call to an ``omp auth-gateway`` (which signs it with the Claude or Codex login the
   auth broker holds), never to a vendor with an API key;
+* the person-model, dialectic and refusal-fallback models, when set, are broker models too;
 * every ``broker`` model is an Anthropic or Codex model, named ``anthropic/<model>`` or
   ``openai-codex/<model>`` (the gateway's own model ids);
 * every ``broker`` base URL is the gateway: loopback, a private address, or a tailnet name or address;
@@ -53,6 +54,8 @@ _LLM_SLOTS = (
         "mental_model_refresh_llm_base_url",
     ),
 )
+# Models named on their own, which run on the provider of the operation they belong to.
+_EXTRA_MODEL_FIELDS = ("people_llm_model", "dialectic_llm_model", "broker_refusal_fallback_model")
 # Decision models are hosted services (Hindsight Inference, TypeSafe, Cloudflare, OpenAI); only "none" passes.
 _DECISION_MODEL_PROVIDER_FIELDS = (
     "decision_model_provider",
@@ -141,6 +144,10 @@ def violations(config: Any) -> list[str]:
             model = getattr(config, model_field, None) or global_model
             base_url = getattr(config, base_url_field, None) or global_base_url
             found.extend(_broker_slot_problems(provider_field, model, base_url))
+    for name in _EXTRA_MODEL_FIELDS:
+        model = getattr(config, name, None)
+        if model and not is_broker_model(model):
+            found.append(f"{name} {model!r} is not a broker model (use 'anthropic/<model>' or 'openai-codex/<model>')")
     for name in _DECISION_MODEL_PROVIDER_FIELDS:
         provider = getattr(config, name, None)
         if provider and provider != "none":

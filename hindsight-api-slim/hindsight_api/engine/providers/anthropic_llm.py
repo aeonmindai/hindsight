@@ -19,6 +19,7 @@ from hindsight_api.engine.cache_affinity import apply_opencode_session
 from hindsight_api.engine.llm_interface import (
     LLMInterface,
     ProviderContentPolicyError,
+    is_gateway_refusal,
 )
 from hindsight_api.engine.llm_trace import LLMResponseUsage, stash_response_usage
 from hindsight_api.engine.llm_transport import build_sdk_timeout, describe_llm_error
@@ -530,6 +531,8 @@ class AnthropicLLM(LLMInterface):
                 if isinstance(e, APIStatusError) and e.status_code in (401, 403):
                     logger.error(f"Anthropic auth error (HTTP {e.status_code}), not retrying: {str(e)}")
                     raise
+                if is_gateway_refusal(e):
+                    raise ProviderContentPolicyError(f"The gateway relayed a refusal; not retrying: {e}") from e
                 if use_native_format and isinstance(e, APIStatusError) and _rejects_output_format(e):
                     logger.warning(
                         f"{self.provider}/{self.model} rejects output_config; structured output "

@@ -1015,6 +1015,14 @@ ENV_WEBHOOK_EXPOSE_RESPONSE_BODY = "HINDSIGHT_API_WEBHOOK_EXPOSE_RESPONSE_BODY"
 # says otherwise.
 ENV_BROKER_ONLY = "HINDSIGHT_API_BROKER_ONLY"
 DEFAULT_BROKER_ONLY = False
+# The model each person-related operation runs on when it differs from the operation it belongs to. Both take
+# a model name only: provider, base URL and key come from the operation they replace (consolidation for the
+# deriver and dreamer, reflect for the dialectic).
+ENV_PEOPLE_LLM_MODEL = "HINDSIGHT_API_PEOPLE_LLM_MODEL"
+ENV_DIALECTIC_LLM_MODEL = "HINDSIGHT_API_DIALECTIC_LLM_MODEL"
+# The broker model that answers a call the primary refused (a cyber-refusal 502 or a refusal stop reason).
+# Same gateway and key as the primary. Unset: a refusal fails the call, as it does for any provider.
+ENV_BROKER_REFUSAL_FALLBACK_MODEL = "HINDSIGHT_API_BROKER_REFUSAL_FALLBACK_MODEL"
 # Refuse a retained item that lacks source_url, said_by, said_at or channel.
 ENV_REQUIRE_SOURCE_METADATA = "HINDSIGHT_API_REQUIRE_SOURCE_METADATA"
 DEFAULT_REQUIRE_SOURCE_METADATA = False
@@ -4116,6 +4124,12 @@ class HindsightConfig:
     # not a broker-held Anthropic or Codex login, or any embedding, reranker, webhook, exporter or parser
     # would leave this network.
     broker_only: bool = DEFAULT_BROKER_ONLY
+    # The deriver and dreamer's model, when it differs from consolidation's (static, server-level only).
+    people_llm_model: str | None = None
+    # The dialectic's model, when it differs from reflect's (static, server-level only).
+    dialectic_llm_model: str | None = None
+    # The broker model that answers a call the primary model refused (static, server-level only).
+    broker_refusal_fallback_model: str | None = None
     # Refuse a retained item that does not carry source_url, said_by, said_at and channel (Neo v2
     # contract 7). Static, server-level only: a tenant must not be able to switch the rule off.
     require_source_metadata: bool = DEFAULT_REQUIRE_SOURCE_METADATA
@@ -6006,6 +6020,9 @@ class HindsightConfig:
                 ENV_WEBHOOK_EXPOSE_RESPONSE_BODY, DEFAULT_WEBHOOK_EXPOSE_RESPONSE_BODY
             ),
             broker_only=_parse_boolean_env(ENV_BROKER_ONLY, DEFAULT_BROKER_ONLY),
+            people_llm_model=os.getenv(ENV_PEOPLE_LLM_MODEL) or None,
+            dialectic_llm_model=os.getenv(ENV_DIALECTIC_LLM_MODEL) or None,
+            broker_refusal_fallback_model=os.getenv(ENV_BROKER_REFUSAL_FALLBACK_MODEL) or None,
             require_source_metadata=_parse_boolean_env(ENV_REQUIRE_SOURCE_METADATA, DEFAULT_REQUIRE_SOURCE_METADATA),
             people_enabled=_parse_boolean_env(ENV_PEOPLE_ENABLED, DEFAULT_PEOPLE_ENABLED),
             # Lower-cased here so the transports can match incoming header names

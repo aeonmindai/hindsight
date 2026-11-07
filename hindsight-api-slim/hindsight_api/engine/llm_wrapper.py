@@ -1913,6 +1913,37 @@ class LLMProvider:
         # SDK will automatically check for authentication when first used
         # No need to verify here - let it fail gracefully on first call with helpful error
 
+    def with_model(self, model: str) -> "LLMProvider":
+        """A provider that is this one with another model: same provider, endpoint, key and settings.
+
+        For an operation that wants a different model than the one it belongs to (the people deriver
+        and dialectic), without repeating that operation's whole configuration.
+        """
+        return LLMProvider(
+            provider=self.provider,
+            api_key=self.api_key,
+            base_url=self.base_url,
+            model=model,
+            reasoning_effort=self.reasoning_effort,
+            groq_service_tier=self.groq_service_tier,
+            openai_service_tier=self.openai_service_tier,
+            bedrock_service_tier=self.bedrock_service_tier,
+            gemini_safety_settings=self.gemini_safety_settings,
+            prompt_cache_enabled=self.prompt_cache_enabled,
+            extra_body=self.extra_body,
+            default_headers=self.default_headers,
+            litellmrouter_config=self.litellmrouter_config,
+            gemini_service_tier=self.gemini_service_tier,
+            timeout=self.timeout,
+            max_retries=self.max_retries,
+            initial_backoff=self.initial_backoff,
+            max_backoff=self.max_backoff,
+            ollama_num_ctx=self.ollama_num_ctx,
+            cache_affinity=self.cache_affinity,
+            structured_output_in_prompt=self.structured_output_in_prompt,
+            codex_home=self.codex_home,
+        )
+
     def with_config(
         self,
         config: Any,

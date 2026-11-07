@@ -370,6 +370,16 @@ class ProviderContentPolicyError(RuntimeError):
     """
 
 
+def is_gateway_refusal(error: BaseException) -> bool:
+    """True when an ``omp auth-gateway`` relayed the vendor's refusal of a request as HTTP 502.
+
+    The gateway reports a refused call as ``502 upstream_error`` with a message that starts
+    ``Refusal (<category>)``. Like any refusal it is a function of the content, so retrying it
+    pays for the same refusal again.
+    """
+    return getattr(error, "status_code", None) == 502 and "Refusal (" in str(error)
+
+
 class ProviderAuthError(RuntimeError):
     """Raised when the provider rejected the request's credentials (HTTP 401/403).
 

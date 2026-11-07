@@ -48,7 +48,9 @@ from hindsight_api.engine.cache_affinity import (
 from hindsight_api.engine.llm_interface import (
     LLMInterface,
     OutputTooLongError,
+    ProviderContentPolicyError,
     ProviderRateLimitResetError,
+    is_gateway_refusal,
 )
 from hindsight_api.engine.llm_trace import LLMResponseUsage, current_response_usage, stash_response_usage
 from hindsight_api.engine.llm_transport import (
@@ -1543,6 +1545,8 @@ class OpenAICompatibleLLM(LLMInterface):
                 if e.status_code in (401, 403):
                     logger.error(f"Auth error (HTTP {e.status_code}), not retrying: {str(e)}")
                     raise
+                if is_gateway_refusal(e):
+                    raise ProviderContentPolicyError(f"The gateway relayed a refusal; not retrying: {e}") from e
 
                 # Diagnostic dump (opt-in) of the exact request behind any 4xx.
                 dump_request_on_4xx(scope=scope, provider=self.provider, model=self.model, err=e, request=call_params)

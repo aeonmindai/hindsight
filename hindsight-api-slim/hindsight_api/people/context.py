@@ -9,8 +9,9 @@ people module takes a ``PeopleContext`` and gets from it:
 * fully qualified names for the ``people_*`` tables (``ctx.table("peers")``);
 * the engine's embeddings (``await ctx.embed(texts)``), which are local when the server runs in
   the broker-only profile;
-* the engine's configured LLM providers: ``ctx.llm_background`` (consolidation settings,
-  for the deriver and the dreamer) and ``ctx.llm_interactive`` (reflect settings, for the dialectic).
+* the engine's configured LLM providers: ``ctx.llm_background`` (consolidation settings, on
+  ``HINDSIGHT_API_PEOPLE_LLM_MODEL`` when set, for the deriver and the dreamer) and ``ctx.llm_interactive``
+  (reflect settings, on ``HINDSIGHT_API_DIALECTIC_LLM_MODEL`` when set, for the dialectic).
 
 The people tables never hold or name memories-store tables (``memory_units`` and friends); a people
 module that needs memories goes through the memory engine (``ctx.engine.recall_async`` and so on).
@@ -92,12 +93,29 @@ class PeopleContext:
         """The pgvector literal asyncpg binds to a ``vector`` parameter (``$1::vector``)."""
         return embedding_to_pgvector(embedding)
 
+    def _llm_for(self, base: Any, model: str | None) -> Any:
+        """``base``, or its provider with ``model`` when the server configures a different one.
+
+        Built once per (provider, model) and kept on the engine: a context lives for one request.
+        """
+        if not model or model == base.model:
+            return base
+        cache = self.engine.__dict__.setdefault("_people_llm_by_model", {})
+        key = (id(base), model)
+        if key not in cache:
+            cache[key] = base.with_model(model)
+        return cache[key]
+
     @property
     def llm_background(self) -> Any:
-        """Claude-configured provider for background work (the engine's consolidation settings)."""
-        return self.engine._consolidation_llm_config
+        """Provider for the deriver and dreamer: the consolidation settings, on ``HINDSIGHT_API_PEOPLE_LLM_MODEL``."""
+        from ..config import get_config
+
+        return self._llm_for(self.engine._consolidation_llm_config, get_config().people_llm_model)
 
     @property
     def llm_interactive(self) -> Any:
-        """Claude-configured provider for questions asked about a person (the engine's reflect settings)."""
-        return self.engine._reflect_llm_config
+        """Provider for the dialectic: the reflect settings, on ``HINDSIGHT_API_DIALECTIC_LLM_MODEL``."""
+        from ..config import get_config
+
+        return self._llm_for(self.engine._reflect_llm_config, get_config().dialectic_llm_model)
