@@ -8,8 +8,8 @@ people module takes a ``PeopleContext`` and gets from it:
   used with plain asyncpg SQL (``$1`` parameters, ``conn.fetch`` / ``fetchrow`` / ``execute``);
 * fully qualified names for the ``people_*`` tables (``ctx.table("peers")``);
 * the engine's embeddings (``await ctx.embed(texts)``), which are local when the server runs in
-  the Claude-only profile;
-* the engine's Claude-configured LLM providers: ``ctx.llm_background`` (consolidation settings,
+  the broker-only profile;
+* the engine's configured LLM providers: ``ctx.llm_background`` (consolidation settings,
   for the deriver and the dreamer) and ``ctx.llm_interactive`` (reflect settings, for the dialectic).
 
 The people tables never hold or name memories-store tables (``memory_units`` and friends); a people
@@ -78,7 +78,7 @@ class PeopleContext:
         return fq_table(full)
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
-        """Embed documents with the engine's embeddings (local in the Claude-only profile)."""
+        """Embed documents with the engine's embeddings (local in the broker-only profile)."""
         encode = getattr(self.engine.embeddings, "encode_documents", None) or self.engine.embeddings.encode
         return await encode(texts)
 

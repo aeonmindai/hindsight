@@ -664,6 +664,23 @@ def create_llm_provider(
             reasoning_effort=reasoning_effort,
         )
 
+    elif provider_lower == "broker":
+        # Anthropic and Codex models reached through an `omp auth-gateway`, which signs the call with
+        # the login the auth broker holds (see providers/broker_llm.py).
+        from .providers.broker_llm import create_broker_llm
+
+        return create_broker_llm(
+            api_key=api_key,
+            base_url=base_url,
+            model=model,
+            reasoning_effort=reasoning_effort,
+            timeout=timeout,
+            extra_body=extra_body,
+            default_headers=default_headers,
+            cache_affinity=cache_affinity,
+            openai_service_tier=openai_service_tier,
+        )
+
     elif provider_lower == "github-copilot":
         return providers.GitHubCopilotLLM(
             provider=provider,
@@ -1071,6 +1088,7 @@ class LLMProvider:
             "vertexai",
             "openai-codex",
             "chatgpt",
+            "broker",
             "claude-code",
             "cursor",
             "github-copilot",

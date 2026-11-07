@@ -2910,15 +2910,17 @@ frequent sweeps — and keep the jitter enabled so restarts don't align the flee
 
 :::
 
-### People, Claude-only profile and source fields {#people}
+### People, broker-only profile and source fields {#people}
 
 This fork copies Honcho's person code (peers and peer cards, representations, the deriver, the dreamer and the dialectic) into the server, so it is licensed AGPL-3.0 (see `LICENSE` and `NOTICE`).
 
 | Variable | Default | Description |
 |---|---|---|
 | `HINDSIGHT_API_PEOPLE_ENABLED` | `false` | Start the deriver queue and the dream scheduler, mount the `/people` routes, read every retained item that has `said_by`, and give every peer a `person:<handle>` mental model after each consolidation. |
-| `HINDSIGHT_API_CLAUDE_ONLY` | `false` | Refuse to start unless every model call goes to Anthropic (`anthropic` or `claude-code`), embeddings and the reranker run on this machine (`local`, `onnx`, a private `tei`), and no webhook, remote OTLP exporter or hosted file parser is configured. The error lists every violation. |
+| `HINDSIGHT_API_BROKER_ONLY` | `false` | Refuse to start unless every model call is a broker-held Anthropic or Codex login (provider `broker`, models `anthropic/<model>` or `openai-codex/<model>`, base URL an `omp auth-gateway` on loopback, a private address or the tailnet), no decision model is set, embeddings and the reranker run on this machine (`local`, `onnx`, a private `tei`), and no webhook, remote OTLP exporter or hosted file parser is configured. The error lists every violation. |
 | `HINDSIGHT_API_REQUIRE_SOURCE_METADATA` | `false` | Refuse a retained item that does not carry `source_url`, `said_by`, `said_at` and `channel`. |
+
+The `broker` provider needs no API key of its own. Set `HINDSIGHT_API_LLM_PROVIDER=broker`, `HINDSIGHT_API_LLM_BASE_URL` to the gateway (`omp auth-gateway serve`, `http://127.0.0.1:4000` by default), `HINDSIGHT_API_LLM_API_KEY` to the gateway token (any value when it runs `--no-auth` on loopback) and the model to one of the gateway's ids (`GET /v1/models`), for example `anthropic/claude-haiku-5-5` or `openai-codex/gpt-6-luna`. A Claude model goes out as an Anthropic Messages request, a Codex model as an OpenAI chat-completions request; the gateway signs either with the login the auth broker holds. Each operation can name its own (`HINDSIGHT_API_RETAIN_LLM_MODEL`, `HINDSIGHT_API_CONSOLIDATION_LLM_MODEL`, `HINDSIGHT_API_REFLECT_LLM_MODEL`, ...). The person deriver and dreamer run on the consolidation model and the dialectic on the reflect model.
 
 A retained item may carry `source_url`, `said_by`, `said_at` and `channel` as named fields (they are stored in the item's metadata and copied onto every fact extracted from it; `said_at` is the item's time when no `timestamp` is given). A value that the CRM, Linear or Stripe holds is stored as a pointer: `pointer_kind` (`crm`, `linear` or `stripe`) and `pointer_id`. The database refuses a pointer with another kind or no id, and the extraction prompt tells the model not to copy the pointed value.
 
