@@ -239,6 +239,7 @@ from hindsight_api.engine.retain.attachment_content import (
     validate_and_canonicalize_content,
 )
 from hindsight_api.engine.retain.attachment_store import StoredAttachment
+from hindsight_api.engine.retain.source_metadata import fold_source_fields, missing_source_fields
 from hindsight_api.engine.search.tags import TagGroup, TagsMatch
 
 _TAG_GROUPS_ADAPTER: TypeAdapter[list[TagGroup]] = TypeAdapter(list[TagGroup])
@@ -1326,6 +1327,49 @@ class MemoryItem(BaseModel):
         "'replace' (default) deletes old data and reprocesses from scratch. "
         "'append' concatenates new content to the existing document text and reprocesses.",
     )
+    source_url: str | None = Field(
+        default=None,
+        description="A working link to the message, page or record this content came from. Stored in metadata "
+        "on every fact extracted from the item.",
+    )
+    said_by: str | None = Field(
+        default=None,
+        description="The handle of the person or agent who said it. Stored in metadata on every extracted fact.",
+    )
+    said_at: datetime | str | None = Field(
+        default=None,
+        description="When they said it (ISO 8601). Used as the item's timestamp when no timestamp is given.",
+    )
+    channel: str | None = Field(
+        default=None,
+        description="Where it was said: discord, whatsapp, slack, mail, linear, omp, ...",
+    )
+    pointer_kind: Literal["crm", "linear", "stripe"] | None = Field(
+        default=None,
+        description="The system that owns a record this content mentions. A value that system holds (a deal "
+        "stage, a Linear status, a payment) is stored as a pointer, never as a copy of the value.",
+    )
+    pointer_id: str | None = Field(
+        default=None,
+        description="The record's id in the pointer_kind system. Required with pointer_kind.",
+    )
+
+    @model_validator(mode="after")
+    def fold_source_fields_into_metadata(self) -> "MemoryItem":
+        """Carry the source and pointer fields in ``metadata`` and default the item's time to ``said_at``."""
+        metadata, said_at = fold_source_fields(
+            self.metadata,
+            source_url=self.source_url,
+            said_by=self.said_by,
+            said_at=self.said_at,
+            channel=self.channel,
+            pointer_kind=self.pointer_kind,
+            pointer_id=self.pointer_id,
+        )
+        self.metadata = metadata or None
+        if said_at is not None and self.timestamp is None:
+            self.timestamp = said_at
+        return self
 
     @field_validator("timestamp", mode="before")
     @classmethod
@@ -2927,6 +2971,20 @@ class UpdateMemoryRequest(BaseModel):
     reason: str | None = Field(
         default=None,
         description="Optional free-text reason recorded when invalidating.",
+    )
+    invalid_kind: Literal["replaced", "wrong"] | None = Field(
+        default=None,
+        description="Why the memory leaves the current set, with state='invalidated': 'replaced' (a later fact "
+        "took its place, named by replaced_by) or 'wrong' (it was never true). Such a memory is never current "
+        "again unless revived on purpose; the store refuses it.",
+    )
+    replaced_by: str | None = Field(
+        default=None,
+        description="The id of the fact that replaced this one. Required with invalid_kind='replaced'.",
+    )
+    revive_dead: bool = Field(
+        default=False,
+        description="With state='valid': bring back a memory that was marked replaced or wrong, on purpose.",
     )
 
     @model_validator(mode="after")
@@ -4584,6 +4642,21 @@ def create_app(
     # Register all routes
     _register_routes(app)
 
+    # People (ported from Honcho): peers, peer cards, representations, dreams and the dialectic.
+    if config.people_enabled:
+        from hindsight_api.people.api import create_people_router
+        from hindsight_api.people.dialectic.api import create_dialectic_router
+        from hindsight_api.people.dreamer.api import create_dream_router
+
+        for people_router in (
+            create_people_router(lambda: app.state.memory),
+            create_dream_router(lambda: app.state.memory),
+            create_dialectic_router(lambda: app.state.memory),
+        ):
+            use_unknown_params_routes(people_router)
+            app.include_router(people_router)
+        logging.info("People routes mounted")
+
     # Mount HTTP extension router if available
     if http_extension:
         extension_router = http_extension.get_router(memory)
@@ -5392,6 +5465,9 @@ def _register_routes(app: FastAPI):
                 resolve_entities=request.resolve_entities,
                 state=request.state,
                 reason=request.reason,
+                invalid_kind=request.invalid_kind,
+                replaced_by=request.replaced_by,
+                revive_dead=request.revive_dead,
                 request_context=request_context,
             )
             if data is None:
@@ -5406,6 +5482,36 @@ def _register_routes(app: FastAPI):
             raise
         except Exception as e:
             raise _internal_error(e, f"PATCH /v1/default/banks/{bank_id}/memories/{memory_id}")
+
+    @app.get(
+        "/v1/default/banks/{bank_id}/memories/{memory_id}/replaced",
+        summary="Get the facts a memory replaced",
+        description="The earlier facts a memory replaced, newest first, each with when it was said, who said it, "
+        "its source link and when it was replaced. Replaced and wrong facts are never current on recall.",
+        operation_id="get_replaced_memories",
+        tags=["Memory"],
+    )
+    async def api_get_replaced_memories(
+        bank_id: str,
+        memory_id: str,
+        request_context: RequestContext = Depends(get_request_context),
+    ):
+        """The facts that ``memory_id`` replaced, with date and source."""
+        try:
+            return {
+                "memory_id": memory_id,
+                "replaced": await app.state.memory.get_replaced_history(
+                    bank_id=bank_id, memory_id=memory_id, request_context=request_context
+                ),
+            }
+        except OperationValidationError as e:
+            raise HTTPException(status_code=e.status_code, detail=e.reason)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        except (AuthenticationError, HTTPException):
+            raise
+        except Exception as e:
+            raise _internal_error(e, f"GET /v1/default/banks/{bank_id}/memories/{memory_id}/replaced")
 
     @app.get(
         "/v1/default/banks/{bank_id}/memories/{memory_id}/history",
@@ -9479,6 +9585,14 @@ def _register_routes(app: FastAPI):
             # Downstream — sync or async, the operations payload, every retry — then
             # carries text only; raw screenshot bytes never enter the pipeline.
             config = get_config()
+            if config.require_source_metadata:
+                for index, item in enumerate(request.items):
+                    missing = missing_source_fields(item.metadata)
+                    if missing:
+                        raise ValueError(
+                            f"items[{index}] is missing {', '.join(missing)}: every retained item carries "
+                            "source_url, said_by, said_at and channel (HINDSIGHT_API_REQUIRE_SOURCE_METADATA)"
+                        )
             # A document may re-reference its own attachments. Editing an article's
             # wording in the control plane re-sends `original_text` as a plain
             # string, placeholders and all; without this that edit would scrub them

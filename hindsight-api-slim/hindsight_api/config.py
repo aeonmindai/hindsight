@@ -1009,6 +1009,17 @@ ENV_WEBHOOK_ALLOWED_HOSTS = "HINDSIGHT_API_WEBHOOK_ALLOWED_HOSTS"
 # Off by default: returning arbitrary internal response bodies to the caller is
 # an information-exfiltration primitive. The delivery status is always returned.
 ENV_WEBHOOK_EXPOSE_RESPONSE_BODY = "HINDSIGHT_API_WEBHOOK_EXPOSE_RESPONSE_BODY"
+# The Claude-only profile: extraction, consolidation and every other model call run on Claude
+# (anthropic or claude-code), embeddings and reranking run on this machine, and nothing else
+# dials out. Startup is refused when the configuration says otherwise.
+ENV_CLAUDE_ONLY = "HINDSIGHT_API_CLAUDE_ONLY"
+DEFAULT_CLAUDE_ONLY = False
+# Refuse a retained item that lacks source_url, said_by, said_at or channel.
+ENV_REQUIRE_SOURCE_METADATA = "HINDSIGHT_API_REQUIRE_SOURCE_METADATA"
+DEFAULT_REQUIRE_SOURCE_METADATA = False
+# People: peers, the deriver, the dreamer, the dialectic and the `person:<handle>` mental models.
+ENV_PEOPLE_ENABLED = "HINDSIGHT_API_PEOPLE_ENABLED"
+DEFAULT_PEOPLE_ENABLED = False
 
 # Built-in llama.cpp configuration (for provider=llamacpp)
 ENV_LLAMACPP_MODEL_PATH = "HINDSIGHT_API_LLAMACPP_MODEL_PATH"
@@ -4099,6 +4110,16 @@ class HindsightConfig:
     # ranges or turn response-body exfiltration back on for itself).
     webhook_allowed_hosts: list[str] = field(default_factory=list)
     webhook_expose_response_body: bool = DEFAULT_WEBHOOK_EXPOSE_RESPONSE_BODY
+    # The Claude-only profile (static, server-level only): startup is refused when any configured
+    # model, embedding, reranker, webhook, exporter or parser would reach a third party other than Anthropic.
+    claude_only: bool = DEFAULT_CLAUDE_ONLY
+    # Refuse a retained item that does not carry source_url, said_by, said_at and channel (Neo v2
+    # contract 7). Static, server-level only: a tenant must not be able to switch the rule off.
+    require_source_metadata: bool = DEFAULT_REQUIRE_SOURCE_METADATA
+    # People (ported from Honcho): the deriver reads what each person says, the dreamer rewrites the
+    # picture of each person, and consolidation gives every peer a `person:<handle>` mental model.
+    # Static, server-level only.
+    people_enabled: bool = DEFAULT_PEOPLE_ENABLED
 
     # Headers forwarded to extensions via RequestContext.extra_headers (static,
     # server-level only — deliberately NOT per-bank configurable: a tenant must
@@ -4490,6 +4511,11 @@ class HindsightConfig:
             self.decision_model_config(operation)  # raises on an unknown provider or a missing key
         # Validate vector_extension
         validate_extension(self.vector_extension)
+        # The Claude-only profile: no model, embedding, reranker, webhook, exporter or parser that
+        # would reach a third party other than Anthropic (see claude_only.py).
+        from .claude_only import enforce as _enforce_claude_only
+
+        _enforce_claude_only(self)
 
         if self.ann_iterative_scan and self.ann_max_scan_tuples < 1:
             raise ValueError(
@@ -5976,6 +6002,9 @@ class HindsightConfig:
             webhook_expose_response_body=_parse_boolean_env(
                 ENV_WEBHOOK_EXPOSE_RESPONSE_BODY, DEFAULT_WEBHOOK_EXPOSE_RESPONSE_BODY
             ),
+            claude_only=_parse_boolean_env(ENV_CLAUDE_ONLY, DEFAULT_CLAUDE_ONLY),
+            require_source_metadata=_parse_boolean_env(ENV_REQUIRE_SOURCE_METADATA, DEFAULT_REQUIRE_SOURCE_METADATA),
+            people_enabled=_parse_boolean_env(ENV_PEOPLE_ENABLED, DEFAULT_PEOPLE_ENABLED),
             # Lower-cased here so the transports can match incoming header names
             # case-insensitively (HTTP header names are case-insensitive) without
             # re-normalising the allowlist on every request.

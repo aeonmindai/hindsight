@@ -2910,6 +2910,20 @@ frequent sweeps — and keep the jitter enabled so restarts don't align the flee
 
 :::
 
+### People, Claude-only profile and source fields {#people}
+
+This fork copies Honcho's person code (peers and peer cards, representations, the deriver, the dreamer and the dialectic) into the server, so it is licensed AGPL-3.0 (see `LICENSE` and `NOTICE`).
+
+| Variable | Default | Description |
+|---|---|---|
+| `HINDSIGHT_API_PEOPLE_ENABLED` | `false` | Start the deriver queue and the dream scheduler, mount the `/people` routes, read every retained item that has `said_by`, and give every peer a `person:<handle>` mental model after each consolidation. |
+| `HINDSIGHT_API_CLAUDE_ONLY` | `false` | Refuse to start unless every model call goes to Anthropic (`anthropic` or `claude-code`), embeddings and the reranker run on this machine (`local`, `onnx`, a private `tei`), and no webhook, remote OTLP exporter or hosted file parser is configured. The error lists every violation. |
+| `HINDSIGHT_API_REQUIRE_SOURCE_METADATA` | `false` | Refuse a retained item that does not carry `source_url`, `said_by`, `said_at` and `channel`. |
+
+A retained item may carry `source_url`, `said_by`, `said_at` and `channel` as named fields (they are stored in the item's metadata and copied onto every fact extracted from it; `said_at` is the item's time when no `timestamp` is given). A value that the CRM, Linear or Stripe holds is stored as a pointer: `pointer_kind` (`crm`, `linear` or `stripe`) and `pointer_id`. The database refuses a pointer with another kind or no id, and the extraction prompt tells the model not to copy the pointed value.
+
+A fact that a later fact replaced, or that was never true, leaves the current set: `PATCH /v1/default/banks/{bank_id}/memories/{id}` with `state: "invalidated"` and `invalid_kind` set to `replaced` (with `replaced_by`) or `wrong`. Recall never returns it, the database refuses to make it current again unless `revive_dead: true` is sent with `state: "valid"`, and `GET .../memories/{id}/replaced` lists what a fact replaced with each earlier fact's date, speaker and source link.
+
 ### Programmatic Configuration
 
 You can also configure the API programmatically using `MemoryEngine.from_env()`:

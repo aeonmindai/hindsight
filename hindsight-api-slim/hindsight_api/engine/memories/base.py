@@ -2501,6 +2501,25 @@ class MemoriesExtension(Extension, ABC):
         it also resets the consolidation markers (see :data:`META_UPDATED_AT`).
         """
 
+    async def mark_memory_dead(
+        self, *, conn, fq_table, bank_id: str, unit_id: str, kind: str, replaced_by: str | None = None
+    ) -> bool:
+        """Record on an archived memory that it was ``replaced`` (by ``replaced_by``) or is ``wrong``.
+
+        A memory marked this way can never be made current again by a restore, an import or a revert
+        until :meth:`clear_dead_kind` says so on purpose. Returns ``False`` if it is not archived.
+        A store that keeps no archive of its own does not support it.
+        """
+        raise NotImplementedError(f"{type(self).__name__} does not record replaced or wrong memories")
+
+    async def clear_dead_kind(self, *, conn, fq_table, bank_id: str, unit_id: str) -> None:
+        """Forget that an archived memory was replaced or wrong, so a restore may bring it back."""
+        raise NotImplementedError(f"{type(self).__name__} does not record replaced or wrong memories")
+
+    async def replaced_history(self, *, conn, fq_table, bank_id: str, unit_id: str) -> list[dict]:
+        """What ``unit_id`` replaced, newest first, with date and source of each earlier fact."""
+        raise NotImplementedError(f"{type(self).__name__} does not record replaced or wrong memories")
+
     @abstractmethod
     async def set_memory_embedding(self, *, conn, fq_table, bank_id: str, unit_id: str, embedding) -> None:
         """Write a memory's embedding, recomputed by the caller, leaving its fields as they are.

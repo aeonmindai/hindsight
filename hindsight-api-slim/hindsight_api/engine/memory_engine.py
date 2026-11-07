@@ -3479,6 +3479,7 @@ class MemoryEngine(MemoryEngineInterface):
         from .maintenance import MaintenanceLoop
 
         self._maintenance_loop: MaintenanceLoop | None = None
+        self._people_runtime: Any = None
 
         # Backpressure mechanism: limit concurrent searches to prevent overwhelming the database
         # Configurable via HINDSIGHT_API_RECALL_MAX_CONCURRENT (default: 50)
@@ -6675,6 +6676,14 @@ class MemoryEngine(MemoryEngineInterface):
         self._maintenance_loop = MaintenanceLoop(self)
         self._maintenance_loop.start()
 
+        # People (ported from Honcho): the deriver reads what each person said, the dreamer rewrites
+        # the picture of each person. Off unless HINDSIGHT_API_PEOPLE_ENABLED is set.
+        if get_config().people_enabled:
+            from ..people.runtime import PeopleRuntime
+
+            self._people_runtime = PeopleRuntime(self)
+            await self._people_runtime.start()
+
         self._initialized = True
         logger.info("Memory system initialized (pool and task backend started)")
 
@@ -6808,6 +6817,9 @@ class MemoryEngine(MemoryEngineInterface):
         # Stop the background maintenance loop (retention sweeps + reconcile)
         if self._maintenance_loop is not None:
             await self._maintenance_loop.stop()
+        if self._people_runtime is not None:
+            await self._people_runtime.stop()
+            self._people_runtime = None
 
         # Unregister the LLM trace recorder span hook
         from ..tracing import unregister_span_recorder
@@ -7314,6 +7326,11 @@ class MemoryEngine(MemoryEngineInterface):
                     await self._operation_validator.on_retain_complete(result_ctx)
                 except Exception as e:
                     logger.warning(f"Post-retain hook error (non-fatal): {e}")
+
+        if get_config().people_enabled:
+            from ..people.runtime import after_retain as _people_after_retain
+
+            await _people_after_retain(self, bank_id, contents_copy)
 
         # Same async side effects every fact insert triggers (retain or import).
         await self._submit_post_insert_maintenance(bank_id, request_context)
@@ -12904,6 +12921,9 @@ class MemoryEngine(MemoryEngineInterface):
         resolve_entities: bool = True,
         state: str | None = None,
         reason: str | None = None,
+        invalid_kind: str | None = None,
+        replaced_by: str | None = None,
+        revive_dead: bool = False,
         request_context: "RequestContext",
     ) -> dict[str, Any] | None:
         """Curate a single raw memory unit: edit its fields and/or change its state.
@@ -12992,6 +13012,21 @@ class MemoryEngine(MemoryEngineInterface):
             v is not None
             for v in (text, context, occurred_start, occurred_end, mentioned_at, new_fact_type, new_entities)
         )
+
+        if invalid_kind is not None:
+            if invalid_kind not in ("replaced", "wrong"):
+                raise ValueError("invalid_kind must be 'replaced' or 'wrong'")
+            if state != "invalidated":
+                raise ValueError(
+                    "invalid_kind needs state='invalidated': a fact is replaced or wrong by leaving the current set"
+                )
+            if invalid_kind == "replaced" and not replaced_by:
+                raise ValueError("a replaced memory needs replaced_by: the id of the fact that took its place")
+            if invalid_kind == "replaced":
+                try:
+                    uuid.UUID(str(replaced_by))
+                except ValueError:
+                    raise ValueError(f"replaced_by '{replaced_by}' is not a valid memory id") from None
 
         await self._authenticate_tenant(request_context)
         if self._operation_validator:
@@ -13355,6 +13390,15 @@ class MemoryEngine(MemoryEngineInterface):
                                 unit_id=str(memory_uuid),
                                 reason=reason,
                             )
+                            if invalid_kind is not None:
+                                await store.mark_memory_dead(
+                                    conn=conn,
+                                    fq_table=fq_table,
+                                    bank_id=bank_id,
+                                    unit_id=str(memory_uuid),
+                                    kind=invalid_kind,
+                                    replaced_by=replaced_by,
+                                )
                             # Sweep after the move, so a racing observation insert is caught too.
                             await self._delete_stale_observations_for_memories(conn, bank_id, [memory_id])
                             need_consolidation = True
@@ -13369,6 +13413,11 @@ class MemoryEngine(MemoryEngineInterface):
 
                         # --- Revert: move archive → live ---
                         elif do_revert and archived2 and revert_plan is not None:
+                            if revive_dead:
+                                # Said on purpose: a replaced or wrong memory may come back as current.
+                                await store.clear_dead_kind(
+                                    conn=conn, fq_table=fq_table, bank_id=bank_id, unit_id=str(memory_uuid)
+                                )
                             restored = await store.restore_memory(
                                 conn=conn, fq_table=fq_table, bank_id=bank_id, unit_id=str(memory_uuid)
                             )
@@ -14107,6 +14156,34 @@ class MemoryEngine(MemoryEngineInterface):
             limit=limit,
             offset=offset,
         )
+
+    async def get_replaced_history(
+        self,
+        bank_id: str,
+        memory_id: str,
+        request_context: "RequestContext",
+    ) -> list[dict]:
+        """The earlier facts that ``memory_id`` replaced, newest first.
+
+        Each entry carries the replaced fact's text, when it was said, who said it, its source link
+        and channel, and when it was replaced. A replaced fact is never returned as current by recall;
+        this is the only place it is read, as history.
+        """
+        try:
+            memory_uuid = uuid.UUID(memory_id)
+        except ValueError:
+            raise ValueError(f"Invalid memory_id: '{memory_id}' is not a valid UUID")
+        await self._authenticate_tenant(request_context)
+        tag_scope = await self._authorize_bank_read(bank_id, BankReadOperation.GET_OBSERVATION_HISTORY, request_context)
+        backend = await self._get_backend()
+        async with acquire_with_retry(backend) as conn:
+            from .memories import get_memories
+
+            if not await self._memory_in_tag_scope(conn, bank_id, str(memory_uuid), tag_scope):
+                return []
+            return await get_memories().replaced_history(
+                conn=conn, fq_table=fq_table, bank_id=bank_id, unit_id=str(memory_uuid)
+            )
 
     async def get_observation_history(
         self,

@@ -1,0 +1,127 @@
+Aeonmind Hindsight fork (aeonmindai/hindsight)
+
+This repository is a fork of Hindsight (vectorize-io/hindsight, v1.2.0, MIT licence, Copyright (c) 2025
+Vectorize AI, Inc.). Upstream's licence text is kept in LICENSE.MIT.
+
+It also contains code copied from and adapted from Honcho (plastic-labs/honcho, Copyright (C) Plastic
+Labs <hello@plasticlabs.ai>), which is licensed under the GNU Affero General Public License v3.0.
+Honcho commit: 3326373c35f6538fb3b7af97803abe328c5aafb4.
+
+Because of that code, this fork as a whole is distributed under the GNU Affero General Public License
+v3.0 (see LICENSE). Every file copied from Honcho keeps Honcho's copyright and licence in a header at the
+top of the file, and says which Honcho file it was adapted from and what was changed (Hindsight's store,
+banks and Claude configuration are used instead of Honcho's tenancy, vector stores and LLM layer).
+
+AGPL-3.0 asks that people who interact with the modified program over a network can get its source. The
+source of this fork is at https://github.com/aeonmindai/hindsight.
+
+Files copied from Honcho, one line for each Honcho source file a file was adapted from
+(file in this repository <- Honcho file @ Honcho commit):
+
+- hindsight-api-slim/hindsight_api/people/api.py <- honcho src/routers/peers.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/conclusions.py <- honcho src/crud/document.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/deriver/consumer.py <- honcho src/deriver/consumer.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/deriver/deriver.py <- honcho src/deriver/deriver.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/deriver/enqueue.py <- honcho src/deriver/enqueue.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/deriver/prompts.py <- honcho src/deriver/prompts.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/deriver/prompts.py <- honcho src/utils/formatting.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/deriver/queue_manager.py <- honcho src/deriver/queue_manager.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/deriver/queue_manager.py <- honcho src/utils/sanitization.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/deriver/queue_payload.py <- honcho src/utils/queue_payload.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/deriver/queue_store.py <- honcho src/crud/deriver.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/deriver/retryable_errors.py <- honcho src/utils/retryable_errors.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/deriver/work_unit.py <- honcho src/utils/work_unit.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dialectic/api.py <- honcho src/routers/peers.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dialectic/api.py <- honcho src/utils/sse.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dialectic/api.py <- honcho src/schemas/api.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dialectic/api.py <- honcho src/utils/filter.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dialectic/chat.py <- honcho src/dialectic/chat.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dialectic/core.py <- honcho src/dialectic/core.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dialectic/evidence.py <- honcho src/utils/evidence.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dialectic/evidence.py <- honcho src/schemas/api.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dialectic/formatting.py <- honcho src/utils/formatting.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dialectic/messages.py <- honcho src/crud/message.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dialectic/prompts.py <- honcho src/dialectic/prompts.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dialectic/schema_conversion.py <- honcho src/utils/schema_conversion.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dialectic/settings.py <- honcho src/config.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dialectic/tools.py <- honcho src/utils/agent_tools.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dialectic/workspace.py <- honcho src/dialectic/workspace.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dream_history.py <- honcho src/crud/dream_history.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dream_history.py <- honcho src/schemas/api.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dreamer/__init__.py <- honcho src/dreamer/__init__.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dreamer/agent_tools.py <- honcho src/utils/agent_tools.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dreamer/api.py <- honcho src/routers/dreams.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dreamer/api.py <- honcho src/routers/workspaces.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dreamer/collection_state.py <- honcho src/crud/collection.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dreamer/dream_due.py <- honcho src/dreamer/dream_due.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dreamer/dream_scheduler.py <- honcho src/dreamer/dream_scheduler.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dreamer/dream_scheduler.py <- honcho src/backlog.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dreamer/orchestrator.py <- honcho src/dreamer/orchestrator.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dreamer/payload.py <- honcho src/utils/queue_payload.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dreamer/payload.py <- honcho src/utils/work_unit.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dreamer/schemas.py <- honcho src/schemas/api.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dreamer/settings.py <- honcho src/config.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dreamer/specialists.py <- honcho src/dreamer/specialists.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dreamer/specialists.py <- honcho src/utils/formatting.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dreamer/surprisal.py <- honcho src/dreamer/surprisal.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dreamer/tool_loop.py <- honcho src/llm/tool_loop.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dreamer/tool_loop.py <- honcho src/utils/types.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dreamer/trees/__init__.py <- honcho src/dreamer/trees/__init__.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dreamer/trees/base.py <- honcho src/dreamer/trees/base.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dreamer/trees/covertree.py <- honcho src/dreamer/trees/covertree.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dreamer/trees/graph.py <- honcho src/dreamer/trees/graph.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dreamer/trees/lsh.py <- honcho src/dreamer/trees/lsh.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dreamer/trees/prototype.py <- honcho src/dreamer/trees/prototype.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dreamer/trees/rptree.py <- honcho src/dreamer/trees/rptree.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dreamer/trees/sklearn_wrapper.py <- honcho src/dreamer/trees/sklearn_wrapper.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/dreamer/working_memory.py <- honcho src/dreamer/working_memory.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/formatting.py <- honcho src/utils/formatting.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/memory_brief.py <- honcho src/utils/memory_brief.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/peer_card.py <- honcho src/crud/peer_card.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/peers.py <- honcho src/crud/peer.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/representation.py <- honcho src/crud/representation.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/representation_utils.py <- honcho src/utils/representation.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/sanitization.py <- honcho src/utils/sanitization.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/schemas.py <- honcho src/schemas/api.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/schemas.py <- honcho src/schemas/configuration.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/schemas.py <- honcho src/schemas/internal.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/hindsight_api/people/schemas.py <- honcho src/utils/config_helpers.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/tests/people/test_deriver_end_to_end.py <- honcho tests/deriver/test_queue_invariants.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/tests/people/test_deriver_enqueue.py <- honcho tests/deriver/test_enqueue_dream.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/tests/people/test_deriver_enqueue.py <- honcho tests/deriver/test_queue_operations.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/tests/people/test_deriver_processing.py <- honcho tests/deriver/test_deriver_processing.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/tests/people/test_deriver_prompts.py <- honcho tests/deriver/test_prompts.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/tests/people/test_deriver_queue_batches.py <- honcho tests/deriver/test_queue_processing.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/tests/people/test_deriver_queue_claims.py <- honcho tests/deriver/test_queue_processing.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/tests/people/test_deriver_queue_claims.py <- honcho tests/deriver/test_claim_heartbeat.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/tests/people/test_deriver_queue_retry.py <- honcho tests/deriver/test_queue_processing.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/tests/people/test_deriver_queue_retry.py <- honcho tests/deriver/test_work_unit_lifecycle.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/tests/people/test_dialectic_core.py <- honcho tests/dialectic/test_model_config_usage.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/tests/people/test_dialectic_core.py <- honcho tests/dialectic/test_structured_output.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/tests/people/test_dialectic_core.py <- honcho tests/test_workspace_chat.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/tests/people/test_dialectic_evidence.py <- honcho tests/dialectic/test_evidence.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/tests/people/test_dialectic_prompts.py <- honcho tests/test_dialectic_prompts.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/tests/people/test_dialectic_tools.py <- honcho tests/test_workspace_chat.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/tests/people/test_dream_history.py <- honcho tests/crud/test_dream_history.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/tests/people/test_dream_history.py <- honcho tests/crud/test_dream_history_lock_order.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/tests/people/test_dreamer_card_refresh.py <- honcho tests/dreamer/test_card_refresh.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/tests/people/test_dreamer_cursor_advance.py <- honcho tests/dreamer/test_cursor_advance.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/tests/people/test_dreamer_dream_due.py <- honcho tests/dreamer/test_dream_due.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/tests/people/test_dreamer_history_wiring.py <- honcho tests/dreamer/test_dream_history_wiring.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/tests/people/test_dreamer_integration.py <- honcho tests/dreamer/test_dreamer_integration.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/tests/people/test_dreamer_notes.py <- honcho tests/dreamer/test_notes.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/tests/people/test_dreamer_prompts.py <- honcho tests/dreamer/test_model_config_usage.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/tests/people/test_dreamer_prompts.py <- honcho tests/dreamer/test_dream_v2_rollups.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/tests/people/test_dreamer_scheduler.py <- honcho tests/dreamer/test_dream_scheduler.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/tests/people/test_dreamer_specialist_brief.py <- honcho tests/dreamer/test_specialist_brief.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/tests/people/test_dreamer_trees.py <- honcho tests/dreamer/test_trees.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/tests/people/test_dreamer_work_list.py <- honcho tests/dreamer/test_work_list.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/tests/people/test_dreamer_write_window.py <- honcho tests/dreamer/test_write_window.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/tests/people/test_dreamer_write_window.py <- honcho tests/dreamer/test_specialist_iteration_limits.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/tests/people/test_memory_brief.py <- honcho tests/utils/test_memory_brief.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/tests/people/test_peer_card.py <- honcho tests/crud/test_peer_card.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/tests/people/test_peers.py <- honcho tests/routes/test_peers.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/tests/people/test_representation.py <- honcho tests/deriver/test_representation_crud.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/tests/people/test_representation.py <- honcho tests/integration/test_representation.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/tests/people/test_representation.py <- honcho tests/crud/test_representation_manager.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4
+- hindsight-api-slim/tests/people/test_representation.py <- honcho tests/crud/test_conclusion_source_messages.py @ 3326373c35f6538fb3b7af97803abe328c5aafb4

@@ -2568,6 +2568,8 @@ async def _run_consolidation_job(
             processed=stats["memories_processed"],
             total=await _progress_total(stats["memories_processed"]),
         )
+        # Every person the bank knows gets a `person:<handle>` mental model before the refreshes are chosen.
+        await _ensure_person_models(memory_engine, bank_id, request_context)
         # SECURITY: Only refresh mental models whose scope covers what was consolidated
         mental_models_refreshed = await _trigger_mental_model_refreshes(
             memory_engine=memory_engine,
@@ -2597,6 +2599,23 @@ async def _run_consolidation_job(
 # untagged memories, but staleness counts only writes carrying their tags, so an
 # untagged-only consolidation can never make them stale and asking would be wasted.
 _MM_SCOPE_REACHES_UNTAGGED = "((tags IS NULL OR tags = '{}') OR trigger ? 'tag_groups')"
+
+
+async def _ensure_person_models(memory_engine: "MemoryEngine", bank_id: str, request_context: "RequestContext") -> None:
+    """Give every person the bank knows a ``person:<handle>`` mental model (people feature, off by default).
+
+    A failure here must never fail the consolidation: the models are created again after the next one.
+    """
+    if not get_config().people_enabled:
+        return
+    try:
+        from ...people.person_models import ensure_person_models
+
+        created = await ensure_person_models(memory_engine, bank_id, request_context)
+        if created:
+            logger.info(f"[CONSOLIDATION] bank={bank_id} created person models for {len(created)} people")
+    except Exception:
+        logger.warning(f"[CONSOLIDATION] bank={bank_id} could not create person models", exc_info=True)
 
 
 async def _trigger_mental_model_refreshes(

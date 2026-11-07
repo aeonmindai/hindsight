@@ -479,6 +479,11 @@ async def restore_memory(*, conn, fq_table, bank_id: str, unit_id: str) -> Store
     if arch_row is None:
         return None
 
+    kind = await conn.fetchval(f"SELECT invalid_kind FROM {arch} WHERE id = $1 AND bank_id = $2", str(unit_id), bank_id)
+    if kind in DEAD_KINDS:
+        raise DeadFactError(
+            f"memory {unit_id} is marked {kind} and cannot be current; revive it on purpose to restore it"
+        )
     # Move the row back. The archive omits embedding/search_vector, so both default
     # to NULL here; search_vector is rebuilt now, the embedding by the caller.
     await conn.execute(
@@ -627,7 +632,10 @@ async def apply_edit(
 
 
 __all__ = [
+    "DEAD_KINDS",
+    "DeadFactError",
     "apply_edit",
+    "clear_dead_kind",
     "clear_unit_entities",
     "delete_document",
     "delete_observations",
@@ -635,8 +643,106 @@ __all__ = [
     "get_archived_memory",
     "insert_facts",
     "invalidate_memory",
+    "mark_memory_dead",
     "observations_for_sources",
+    "replaced_history",
     "restore_memory",
     "set_invalidation_reason",
     "set_memory_embedding",
 ]
+
+
+# ------------------------------------------------------------- replaced and wrong facts
+#
+# A fact the later word of a person replaced, or that was never true, is archived with a kind. The
+# archive row records ``replaced_by`` (the fact that took its place) and ``replaced_at``; a trigger on
+# ``memory_units`` (migration a5f1c3e7d902) refuses to let such a row become current again.
+
+DEAD_KINDS = ("replaced", "wrong")
+
+
+class DeadFactError(ValueError):
+    """A memory marked replaced or wrong cannot be made current again without saying so on purpose."""
+
+
+async def mark_memory_dead(
+    *, conn, fq_table, bank_id: str, unit_id: str, kind: str, replaced_by: str | None = None
+) -> bool:
+    """Record on an archived memory that it was ``replaced`` (by ``replaced_by``) or is ``wrong``.
+
+    Returns ``False`` when the memory is not in the archive. A ``replaced`` kind needs ``replaced_by``,
+    and a fact cannot replace itself.
+    """
+    if kind not in DEAD_KINDS:
+        raise ValueError(f"kind must be one of {', '.join(DEAD_KINDS)}, got {kind!r}")
+    if kind == "replaced" and not replaced_by:
+        raise ValueError("a replaced memory needs replaced_by: the fact that took its place")
+    if kind == "replaced" and str(replaced_by) == str(unit_id):
+        raise ValueError("a memory cannot replace itself")
+    status = await conn.execute(
+        f"UPDATE {fq_table('invalidated_memory_units')} SET invalid_kind = $3, replaced_by = $4::uuid, "
+        f"replaced_at = CASE WHEN $3 = 'replaced' THEN now() ELSE NULL END, updated_at = now() "
+        f"WHERE id = $1 AND bank_id = $2",
+        str(unit_id),
+        bank_id,
+        kind,
+        str(replaced_by) if kind == "replaced" else None,
+    )
+    return str(status).endswith(" 1")
+
+
+async def clear_dead_kind(*, conn, fq_table, bank_id: str, unit_id: str) -> None:
+    """Forget that an archived memory was replaced or wrong, so it may be restored on purpose."""
+    await conn.execute(
+        f"UPDATE {fq_table('invalidated_memory_units')} SET invalid_kind = 'other', replaced_by = NULL, "
+        f"replaced_at = NULL, updated_at = now() WHERE id = $1 AND bank_id = $2",
+        str(unit_id),
+        bank_id,
+    )
+
+
+async def replaced_history(*, conn, fq_table, bank_id: str, unit_id: str) -> list[dict[str, Any]]:
+    """What ``unit_id`` replaced, newest first, each with when it was said, who said it and when it was replaced.
+
+    Follows the chain: a fact that replaced another that had itself replaced a third lists both.
+    """
+    rows = await conn.fetch(
+        f"""
+        WITH RECURSIVE chain AS (
+            SELECT a.id, a.text, a.mentioned_at, a.event_date, a.metadata, a.invalid_kind, a.replaced_by,
+                   a.replaced_at, a.invalidation_reason, 1 AS depth
+            FROM {fq_table("invalidated_memory_units")} a
+            WHERE a.replaced_by = $1::uuid AND a.bank_id = $2
+          UNION ALL
+            SELECT a.id, a.text, a.mentioned_at, a.event_date, a.metadata, a.invalid_kind, a.replaced_by,
+                   a.replaced_at, a.invalidation_reason, c.depth + 1
+            FROM {fq_table("invalidated_memory_units")} a JOIN chain c ON a.replaced_by = c.id
+            WHERE a.bank_id = $2 AND c.depth < 50
+        )
+        SELECT * FROM chain ORDER BY COALESCE(mentioned_at, event_date) DESC, depth
+        """,
+        str(unit_id),
+        bank_id,
+    )
+    history: list[dict[str, Any]] = []
+    for row in rows:
+        metadata = row["metadata"]
+        if isinstance(metadata, str):
+            metadata = json.loads(metadata)
+        metadata = metadata or {}
+        history.append(
+            {
+                "id": str(row["id"]),
+                "text": row["text"],
+                "said_at": (row["mentioned_at"] or row["event_date"]).isoformat()
+                if (row["mentioned_at"] or row["event_date"])
+                else None,
+                "said_by": metadata.get("said_by"),
+                "source_url": metadata.get("source_url"),
+                "channel": metadata.get("channel"),
+                "replaced_by": str(row["replaced_by"]) if row["replaced_by"] else None,
+                "replaced_at": row["replaced_at"].isoformat() if row["replaced_at"] else None,
+                "reason": row["invalidation_reason"],
+            }
+        )
+    return history

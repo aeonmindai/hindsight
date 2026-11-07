@@ -689,6 +689,24 @@ class PostgresMemories(MemoriesExtension):
     async def restore_memory(self, *, conn, fq_table, bank_id: str, unit_id: str) -> StoredMemory | None:
         return await writes.restore_memory(conn=conn, fq_table=fq_store_table, bank_id=bank_id, unit_id=unit_id)
 
+    async def mark_memory_dead(
+        self, *, conn, fq_table, bank_id: str, unit_id: str, kind: str, replaced_by: str | None = None
+    ) -> bool:
+        return await writes.mark_memory_dead(
+            conn=conn,
+            fq_table=fq_store_table,
+            bank_id=bank_id,
+            unit_id=unit_id,
+            kind=kind,
+            replaced_by=replaced_by,
+        )
+
+    async def clear_dead_kind(self, *, conn, fq_table, bank_id: str, unit_id: str) -> None:
+        await writes.clear_dead_kind(conn=conn, fq_table=fq_store_table, bank_id=bank_id, unit_id=unit_id)
+
+    async def replaced_history(self, *, conn, fq_table, bank_id: str, unit_id: str) -> list[dict]:
+        return await writes.replaced_history(conn=conn, fq_table=fq_store_table, bank_id=bank_id, unit_id=unit_id)
+
     async def set_memory_embedding(self, *, conn, fq_table, bank_id: str, unit_id: str, embedding) -> None:
         await writes.set_memory_embedding(
             conn=conn, fq_table=fq_store_table, bank_id=bank_id, unit_id=unit_id, embedding=embedding

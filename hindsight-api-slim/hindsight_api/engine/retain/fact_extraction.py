@@ -1879,6 +1879,12 @@ def _build_user_message(
                 'statements to that speaker and classify them as "world", not "assistant".'
             )
 
+    # Who said it and what it points at (Neo v2 contract 7): the speaker owns first-person statements
+    # and a record another system holds is named, never copied.
+    from .source_metadata import pointer_prompt_section, speaker_prompt_section
+
+    source_section = speaker_prompt_section(metadata) + pointer_prompt_section(metadata)
+
     # Attachments are spliced into this message in place of their placeholders
     # (see build_prompt_parts), so by the time the model reads it the picture is
     # simply there — with nothing telling it to look. The prompt otherwise says
@@ -1918,7 +1924,7 @@ def _build_user_message(
 
 Chunk: {chunk_index + 1}/{total_chunks}
 Event Date: {event_date_str}
-Context: {sanitized_context}{metadata_section}{narrator_section}{attachment_section}
+Context: {sanitized_context}{metadata_section}{narrator_section}{attachment_section}{source_section}
 
 Content:
 {sanitized_chunk}"""
