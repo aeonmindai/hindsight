@@ -8,6 +8,7 @@ what the deriver and the dreamer already concluded about the person, each line w
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 from typing import TYPE_CHECKING, Any
@@ -32,6 +33,30 @@ PERSON_SOURCE_QUERY = (
     "When a fact changed, state the latest one and put the earlier one under 'Earlier' with its date and source. "
     "Leave out a value that the CRM, Linear or Stripe holds; name the record (its pointer_kind and pointer_id) instead."
 )
+
+#: The tag Neo puts on a confidence (what someone asked him to keep between them) and on the messages it covers.
+CONFIDENCE_TAG = "confidence"
+
+#: How a person model is refreshed: after each consolidation, from the memories that are not confidences, and not
+#: from other mental models (a model built from memories would otherwise carry a confidence into this one). A person
+#: model is shown to every agent, so a confidence must never be in it.
+PERSON_MODEL_TRIGGER: dict[str, Any] = {
+    "refresh_after_consolidation": True,
+    "exclude_mental_models": True,
+    "tag_groups": [{"not": {"tags": [CONFIDENCE_TAG], "match": "any_strict"}}],
+}
+
+
+def leaves_out_confidences(trigger: Any) -> bool:
+    """Whether a stored trigger (a JSON string or a dict) already leaves confidences out of the refresh."""
+    if isinstance(trigger, str):
+        try:
+            trigger = json.loads(trigger)
+        except ValueError:
+            return False
+    if not isinstance(trigger, dict):
+        return False
+    return bool(trigger.get("exclude_mental_models")) and PERSON_MODEL_TRIGGER["tag_groups"] == trigger.get("tag_groups")
 
 
 def person_model_id(handle: str) -> str:
@@ -95,11 +120,12 @@ async def ensure_person_models(engine: Any, bank_id: str, request_context: "Requ
     wanted = {person_model_id(handle): handle for handle in handles}
     async with ctx.conn() as conn:
         existing = await conn.fetch(
-            "SELECT id FROM " + _mental_models_table() + " WHERE bank_id = $1 AND id = ANY($2::text[])",
+            "SELECT id, trigger FROM " + _mental_models_table() + " WHERE bank_id = $1 AND id = ANY($2::text[])",
             bank_id,
             list(wanted),
         )
-    missing = [handle for model_id, handle in wanted.items() if model_id not in {row["id"] for row in existing}]
+    present = {row["id"] for row in existing}
+    missing = [handle for model_id, handle in wanted.items() if model_id not in present]
     created: list[str] = []
     for handle in missing:
         try:
@@ -109,7 +135,7 @@ async def ensure_person_models(engine: Any, bank_id: str, request_context: "Requ
                 source_query=PERSON_SOURCE_QUERY.format(handle=handle),
                 content=await person_model_content(ctx, bank_id, handle),
                 mental_model_id=person_model_id(handle),
-                trigger={"refresh_after_consolidation": True},
+                trigger=dict(PERSON_MODEL_TRIGGER),
                 request_context=request_context or ctx.request_context,
             )
             created.append(handle)
@@ -117,6 +143,21 @@ async def ensure_person_models(engine: Any, bank_id: str, request_context: "Requ
             # One person's model failing must not stop the others or the consolidation that called us.
             logger.warning(
                 "[PEOPLE] could not create the person model for %s in bank %s", handle, bank_id, exc_info=True
+            )
+    # A model made before the exclusion existed would keep reading the confidences: bring its trigger up to date.
+    for row in existing:
+        if leaves_out_confidences(row["trigger"]):
+            continue
+        try:
+            await engine.update_mental_model(
+                bank_id=bank_id,
+                mental_model_id=row["id"],
+                trigger=dict(PERSON_MODEL_TRIGGER),
+                request_context=request_context or ctx.request_context,
+            )
+        except Exception:
+            logger.warning(
+                "[PEOPLE] could not update the trigger of %s in bank %s", row["id"], bank_id, exc_info=True
             )
     return created
 

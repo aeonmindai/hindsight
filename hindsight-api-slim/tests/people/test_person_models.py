@@ -11,9 +11,11 @@ from hindsight_api.engine.consolidation import consolidator
 from hindsight_api.people.context import PeopleContext
 from hindsight_api.people.peers import get_or_create_peers
 from hindsight_api.people.person_models import (
+    CONFIDENCE_TAG,
     PERSON_SOURCE_QUERY,
     ensure_person_models,
     handle_of,
+    leaves_out_confidences,
     person_model_content,
     person_model_id,
 )
@@ -45,6 +47,9 @@ async def test_every_new_person_gets_a_person_model_with_nobody_asking(people_en
     for model in models:
         assert "refresh_after_consolidation" in str(model["trigger"])
         assert "true" in str(model["trigger"]).lower()
+        # A person model is shown to every agent: it never reads a confidence, nor another model that might carry one.
+        assert leaves_out_confidences(model["trigger"])
+        assert CONFIDENCE_TAG in str(model["trigger"])
 
 
 @pytest.mark.asyncio
@@ -211,3 +216,31 @@ async def test_a_retained_message_makes_its_speaker_a_peer_and_queues_the_messag
 async def test_the_retain_hook_never_fails_the_retain(people_engine, bank_id):
     with patch("hindsight_api.people.deriver.enqueue.enqueue_messages", side_effect=RuntimeError("down")):
         await after_retain(people_engine, bank_id, [{"content": "hello", "metadata": {"said_by": "asha"}}])
+
+
+@pytest.mark.asyncio
+async def test_a_model_made_before_the_exclusion_gets_its_trigger_updated(people_engine, ctx, bank_id):
+    await get_or_create_peers(ctx, bank_id, ["asha"])
+    await ensure_person_models(people_engine, bank_id)
+    async with people_engine._pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE mental_models SET trigger = '{\"refresh_after_consolidation\": true}'::jsonb WHERE bank_id = $1",
+            bank_id,
+        )
+    (before,) = await _models(people_engine, bank_id)
+    assert not leaves_out_confidences(before["trigger"])
+
+    created = await ensure_person_models(people_engine, bank_id)
+
+    assert created == []
+    (after,) = await _models(people_engine, bank_id)
+    assert leaves_out_confidences(after["trigger"])
+
+
+def test_only_a_trigger_that_excludes_confidences_counts():
+    assert not leaves_out_confidences(None)
+    assert not leaves_out_confidences('{"refresh_after_consolidation": true}')
+    assert not leaves_out_confidences({"tag_groups": [{"tags": ["x"]}]})
+    assert leaves_out_confidences(
+        {"exclude_mental_models": True, "tag_groups": [{"not": {"tags": ["confidence"], "match": "any_strict"}}]}
+    )
