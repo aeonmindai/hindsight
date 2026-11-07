@@ -53,7 +53,8 @@ def _pg_upgrade() -> None:
     op.execute(
         f"""
         DO $$ BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'invalidated_mu_kind_check') THEN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'invalidated_mu_kind_check'
+                           AND conrelid = '{schema}invalidated_memory_units'::regclass) THEN
             ALTER TABLE {schema}invalidated_memory_units
                 ADD CONSTRAINT invalidated_mu_kind_check
                 CHECK (invalid_kind IN ('replaced', 'wrong', 'other')
@@ -94,7 +95,8 @@ def _pg_upgrade() -> None:
     op.execute(
         f"""
         DO $$ BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'memory_units_pointer_check') THEN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'memory_units_pointer_check'
+                           AND conrelid = '{schema}memory_units'::regclass) THEN
             ALTER TABLE {schema}memory_units
                 ADD CONSTRAINT memory_units_pointer_check
                 CHECK (

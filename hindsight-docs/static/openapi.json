@@ -849,6 +849,72 @@
         }
       }
     },
+    "/v1/default/banks/{bank_id}/memories/{memory_id}/replaced": {
+      "get": {
+        "tags": [
+          "Memory"
+        ],
+        "summary": "Get the facts a memory replaced",
+        "description": "The earlier facts a memory replaced, newest first, each with when it was said, who said it, its source link and when it was replaced. Replaced and wrong facts are never current on recall.",
+        "operationId": "get_replaced_memories",
+        "parameters": [
+          {
+            "name": "bank_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Bank Id"
+            }
+          },
+          {
+            "name": "memory_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Memory Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/default/banks/{bank_id}/memories/{memory_id}/history": {
       "get": {
         "tags": [
@@ -15220,6 +15286,87 @@
             ],
             "title": "Update Mode",
             "description": "How to handle an existing document with the same document_id. 'replace' (default) deletes old data and reprocesses from scratch. 'append' concatenates new content to the existing document text and reprocesses."
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url",
+            "description": "A working link to the message, page or record this content came from. Stored in metadata on every fact extracted from the item."
+          },
+          "said_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Said By",
+            "description": "The handle of the person or agent who said it. Stored in metadata on every extracted fact."
+          },
+          "said_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Said At",
+            "description": "When they said it (ISO 8601). Used as the item's timestamp when no timestamp is given."
+          },
+          "channel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel",
+            "description": "Where it was said: discord, whatsapp, slack, mail, linear, omp, ..."
+          },
+          "pointer_kind": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "crm",
+                  "linear",
+                  "stripe"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pointer Kind",
+            "description": "The system that owns a record this content mentions. A value that system holds (a deal stage, a Linear status, a payment) is stored as a pointer, never as a copy of the value."
+          },
+          "pointer_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pointer Id",
+            "description": "The record's id in the pointer_kind system. Required with pointer_kind."
           }
         },
         "type": "object",
@@ -20082,6 +20229,40 @@
             ],
             "title": "Reason",
             "description": "Optional free-text reason recorded when invalidating."
+          },
+          "invalid_kind": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "replaced",
+                  "wrong"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invalid Kind",
+            "description": "Why the memory leaves the current set, with state='invalidated': 'replaced' (a later fact took its place, named by replaced_by) or 'wrong' (it was never true). Such a memory is never current again unless revived on purpose; the store refuses it."
+          },
+          "replaced_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replaced By",
+            "description": "The id of the fact that replaced this one. Required with invalid_kind='replaced'."
+          },
+          "revive_dead": {
+            "type": "boolean",
+            "title": "Revive Dead",
+            "description": "With state='valid': bring back a memory that was marked replaced or wrong, on purpose.",
+            "default": false
           }
         },
         "type": "object",

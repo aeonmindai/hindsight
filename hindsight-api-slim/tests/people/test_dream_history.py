@@ -268,7 +268,8 @@ async def test_prune_deletes_old_runs_and_interrupts_stale_ones(ctx: PeopleConte
     await age_run(ctx, bank_id, old.run_id, retention + datetime.timedelta(hours=1))
     await age_run(ctx, bank_id, stale.run_id, datetime.timedelta(days=2))
 
-    assert await prune_dream_history(ctx) >= 1
+    # The prune is global: a test running beside this one may delete `old` first, so the count is not asserted.
+    await prune_dream_history(ctx)
 
     with pytest.raises(ResourceNotFoundException):
         await get_run_detail(ctx, bank_id, old.run_id)
