@@ -83,6 +83,7 @@ class InMemoryMemories(MemoriesExtension):
         # The curation archive is just a second dict — invalidation moves a memory
         # from `rows` to `archive`, exactly as it moves between tables/namespaces.
         self.archive: dict[str, StoredMemory] = {}
+        self.dead_kind: dict[str, tuple[str, str | None]] = {}
         self.invalidation_reason: dict[str, str | None] = {}
         # Units the consolidator gave up on — the store's `consolidation_failed_at`. Out of the
         # backlog, and what `find_failed_consolidation` hands the retry.
@@ -525,6 +526,22 @@ class InMemoryMemories(MemoriesExtension):
 
     async def set_invalidation_reason(self, *, conn, fq_table, bank_id, unit_id, reason):
         self.invalidation_reason[str(unit_id)] = reason
+
+    async def mark_memory_dead(self, *, conn, fq_table, bank_id, unit_id, kind, replaced_by=None):
+        if str(unit_id) not in self.archive:
+            return False
+        self.dead_kind[str(unit_id)] = (kind, replaced_by)
+        return True
+
+    async def clear_dead_kind(self, *, conn, fq_table, bank_id, unit_id):
+        self.dead_kind.pop(str(unit_id), None)
+
+    async def replaced_history(self, *, conn, fq_table, bank_id, unit_id):
+        return [
+            {"id": old, "text": self.archive[old].text, "replaced_by": str(unit_id)}
+            for old, (kind, replaced_by) in self.dead_kind.items()
+            if kind == "replaced" and replaced_by == str(unit_id) and old in self.archive
+        ]
 
     async def restore_memory(self, *, conn, fq_table, bank_id, unit_id):
         row = self.archive.pop(str(unit_id), None)

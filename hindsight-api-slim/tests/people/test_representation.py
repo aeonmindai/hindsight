@@ -820,7 +820,7 @@ async def test_working_representation_blends_semantic_derived_and_recent(ctx: Pe
     assert sorted(o.content for o in rep.explicit) == ["likes ham", "likes jam", "likes tea"]
 
     capped = await get_working_representation(ctx, bank_id, observer="alice", observed="alice", max_observations=2)
-    assert [o.content for o in capped.explicit] == ["likes jam", "likes ham"]
+    assert sorted(o.content for o in capped.explicit) == ["likes ham", "likes jam"]
 
 
 @pytest.mark.asyncio

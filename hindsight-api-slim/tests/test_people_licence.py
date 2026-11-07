@@ -19,8 +19,9 @@ def _copied_files() -> dict[str, list[tuple[str, str]]]:
     """Repo path -> [(honcho path, honcho commit)] for every file whose first lines carry the Honcho header."""
     copied: dict[str, list[tuple[str, str]]] = {}
     for path in _python_files():
-        head = "\n".join(path.read_text(encoding="utf-8").splitlines()[:12])
-        if HEADER_START in head:
+        head_lines = path.read_text(encoding="utf-8").splitlines()[:12]
+        head = "\n".join(head_lines)
+        if any(line.startswith(HEADER_START) for line in head_lines):
             copied[path.relative_to(REPO).as_posix()] = [(m.group(2), m.group(1)) for m in ADAPTED.finditer(head)]
     return copied
 
