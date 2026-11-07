@@ -30,24 +30,13 @@ NO_AUTH_PLACEHOLDER_KEY = "broker-gateway"
 
 
 def broker_model_family(model: str) -> str:
-    """The provider of a gateway model id (``anthropic``, ``openai-codex``, ``google-antigravity``, ``opencode-go``)."""
+    """``anthropic`` or ``openai-codex`` for a gateway model id; ``ValueError`` for any other model."""
     if is_broker_model(model):
         return next(p.rstrip("/") for p in BROKER_MODEL_PREFIXES if model.startswith(p))
     raise ValueError(
-        f"Broker model {model!r} is not a broker model: name it '<provider>/<model>' with a provider the broker "
-        "holds (the ids that `GET <gateway>/v1/models` lists)."
+        f"Broker model {model!r} is not a broker model: name it 'anthropic/<model>' or 'openai-codex/<model>' "
+        "(the ids that `GET <gateway>/v1/models` lists)."
     )
-
-
-def broker_wire(model: str) -> str:
-    """``anthropic`` (Messages) for Claude models, ``openai`` (chat completions) for every other model.
-
-    The Claude logins accept the Messages shape; the gateway sends everything else on as chat completions.
-    Claude models on Antigravity (``google-antigravity/claude-*``) are Claude models too.
-    """
-    family = broker_model_family(model)
-    name = model.split("/", 1)[1]
-    return "anthropic" if family == "anthropic" or name.startswith("claude-") else "openai"
 
 
 def gateway_root(base_url: str) -> str:
@@ -165,11 +154,11 @@ def _create_broker_model(
     cache_affinity: str | None,
     openai_service_tier: str | None,
 ) -> LLMInterface:
-    wire = broker_wire(model)
+    family = broker_model_family(model)
     root = gateway_root(base_url)
     key = api_key or NO_AUTH_PLACEHOLDER_KEY
 
-    if wire == "anthropic":
+    if family == "anthropic":
         from .anthropic_llm import AnthropicLLM
 
         llm = AnthropicLLM(

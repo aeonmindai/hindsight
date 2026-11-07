@@ -27,8 +27,8 @@ from urllib.parse import urlparse
 BROKER_LLM_PROVIDER = "broker"
 # ``none`` turns a model-backed operation off, so it calls nobody.
 ALLOWED_LLM_PROVIDERS = frozenset({BROKER_LLM_PROVIDER, "none", "mock"})
-# The gateway's model ids: ``<provider>/<model>``: the subscription logins and keys the broker holds.
-BROKER_MODEL_PREFIXES = ("anthropic/", "openai-codex/", "google-antigravity/", "opencode-go/")
+# The gateway's model ids: ``<provider>/<model>``. These are the two subscription families the broker holds.
+BROKER_MODEL_PREFIXES = ("anthropic/", "openai-codex/")
 LOCAL_EMBEDDINGS_PROVIDERS = frozenset({"local", "onnx"})
 LOCAL_RERANKER_PROVIDERS = frozenset({"local", "onnx", "flashrank", "jina-mlx", "rrf", "none"})
 # A service that runs on this machine or inside our own network, reached by URL.
@@ -36,7 +36,7 @@ SELF_HOSTED_PROVIDERS = frozenset({"tei"})
 
 
 def is_broker_model(model: str | None) -> bool:
-    """True for ``<provider>/<model>`` with a provider the broker holds (``BROKER_MODEL_PREFIXES``)."""
+    """True for ``anthropic/<model>`` and ``openai-codex/<model>``: a prefix followed by a model name."""
     return bool(model) and any(model.startswith(p) and len(model) > len(p) for p in BROKER_MODEL_PREFIXES)
 
 

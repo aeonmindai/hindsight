@@ -7,7 +7,7 @@ import pytest
 from hindsight_api.broker_only import enforce, violations
 from hindsight_api.config import HindsightConfig
 from hindsight_api.engine.llm_wrapper import create_llm_provider
-from hindsight_api.engine.providers.broker_llm import broker_model_family, broker_wire, gateway_root
+from hindsight_api.engine.providers.broker_llm import broker_model_family, gateway_root
 
 GATEWAY = "http://127.0.0.1:4000"
 
@@ -160,8 +160,6 @@ def test_the_environment_switch_refuses_a_broker_provider_with_a_vendor_model(mo
 def test_the_model_id_names_the_family():
     assert broker_model_family("anthropic/claude-haiku-5-5") == "anthropic"
     assert broker_model_family("openai-codex/gpt-6-luna") == "openai-codex"
-    assert broker_model_family("google-antigravity/gemini-4-argon") == "google-antigravity"
-    assert broker_model_family("opencode-go/kimi-k3.1-pro") == "opencode-go"
     for bad in ("claude-haiku-5-5", "gpt-4o", "openai/gpt-4o", "anthropic/", "openrouter/anthropic/claude"):
         with pytest.raises(ValueError, match="not a broker model"):
             broker_model_family(bad)
@@ -213,27 +211,3 @@ def test_a_vendor_model_is_refused_by_the_provider_itself():
 def test_the_provider_needs_a_gateway_url():
     with pytest.raises(ValueError, match="needs the auth gateway's URL"):
         _provider("anthropic/claude-haiku-5-5", base_url="")
-
-
-def test_claude_models_use_the_messages_wire_and_every_other_model_chat_completions():
-    assert broker_wire("anthropic/claude-sonnet-5-5") == "anthropic"
-    assert broker_wire("google-antigravity/claude-opus-5-5") == "anthropic"
-    assert broker_wire("google-antigravity/gemini-4-argon") == "openai"
-    assert broker_wire("openai-codex/gpt-6.1-sol") == "openai"
-    assert broker_wire("opencode-go/glm-5.3") == "openai"
-
-
-@pytest.mark.parametrize(
-    ("model", "provider_class"),
-    [
-        ("google-antigravity/claude-sonnet-5-5", "AnthropicLLM"),
-        ("google-antigravity/gemini-3.8-flash", "OpenAICompatibleLLM"),
-        ("opencode-go/kimi-k3.1-pro", "OpenAICompatibleLLM"),
-    ],
-)
-def test_antigravity_and_opencode_models_reach_the_gateway(model, provider_class):
-    llm = _provider(model)
-
-    assert type(llm).__name__ == provider_class
-    assert llm.model == model
-    assert violations(_config(llm_model=model)) == []
