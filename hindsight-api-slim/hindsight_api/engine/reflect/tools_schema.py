@@ -309,6 +309,13 @@ def _done_tool_for_output_language(base: dict, language: str) -> dict:
     answer = tool["function"]["parameters"]["properties"].get("answer")
     if answer is not None:
         answer["description"] = answer["description"].replace(_DONE_ANSWER_DEFAULT_LANGUAGE, "")
+    from ...config import get_config
+    from ..prompt_utils import output_language_directive
+
+    if get_config().llm_output_language_directive:
+        # The configured directive is the one text for the pipeline; the tool repeats it, as it repeats the stock rule.
+        tool["function"]["description"] += " LANGUAGE: " + output_language_directive(language).strip()
+        return tool
     tool["function"]["description"] += (
         f" LANGUAGE: Write the answer exclusively in {language}, whatever language the question "
         "and the retrieved memories are in."

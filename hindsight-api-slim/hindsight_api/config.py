@@ -781,6 +781,11 @@ ENV_TEXT_SEARCH_EXTENSION_NATIVE_LANGUAGE = "HINDSIGHT_API_TEXT_SEARCH_EXTENSION
 ENV_TEXT_SEARCH_EXTENSION_PG_SEARCH_TOKENIZER = "HINDSIGHT_API_TEXT_SEARCH_EXTENSION_PG_SEARCH_TOKENIZER"
 ENV_TEXT_SEARCH_EXTENSION_PG_SEARCH_FUNCTION_SCHEMA = "HINDSIGHT_API_TEXT_SEARCH_EXTENSION_PG_SEARCH_FUNCTION_SCHEMA"
 ENV_LLM_OUTPUT_LANGUAGE = "HINDSIGHT_API_LLM_OUTPUT_LANGUAGE"
+# The text that closes retain, consolidation and reflect prompts when an output language is set. Unset: the stock
+# "translate everything into <language>" directive. ``keep-words``: write the language in Latin letters and keep
+# names, nicknames, slang and quoted phrases word for word (for code-mixed chat such as Benglish). Anything else is
+# used as the directive itself, with ``{language}`` replaced by the language. Static, server-level only.
+ENV_LLM_OUTPUT_LANGUAGE_DIRECTIVE = "HINDSIGHT_API_LLM_OUTPUT_LANGUAGE_DIRECTIVE"
 ENV_QUERY_ANALYZER_LANGUAGES = "HINDSIGHT_API_QUERY_ANALYZER_LANGUAGES"
 
 ENV_HOST = "HINDSIGHT_API_HOST"
@@ -4124,6 +4129,8 @@ class HindsightConfig:
     # not a broker-held Anthropic or Codex login, or any embedding, reranker, webhook, exporter or parser
     # would leave this network.
     broker_only: bool = DEFAULT_BROKER_ONLY
+    # The directive that closes the prompts when ``llm_output_language`` is set; see ENV_LLM_OUTPUT_LANGUAGE_DIRECTIVE.
+    llm_output_language_directive: str | None = None
     # The deriver and dreamer's model, when it differs from consolidation's (static, server-level only).
     people_llm_model: str | None = None
     # The dialectic's model, when it differs from reflect's (static, server-level only).
@@ -6020,6 +6027,7 @@ class HindsightConfig:
                 ENV_WEBHOOK_EXPOSE_RESPONSE_BODY, DEFAULT_WEBHOOK_EXPOSE_RESPONSE_BODY
             ),
             broker_only=_parse_boolean_env(ENV_BROKER_ONLY, DEFAULT_BROKER_ONLY),
+            llm_output_language_directive=os.getenv(ENV_LLM_OUTPUT_LANGUAGE_DIRECTIVE) or None,
             people_llm_model=os.getenv(ENV_PEOPLE_LLM_MODEL) or None,
             dialectic_llm_model=os.getenv(ENV_DIALECTIC_LLM_MODEL) or None,
             broker_refusal_fallback_model=os.getenv(ENV_BROKER_REFUSAL_FALLBACK_MODEL) or None,

@@ -1148,6 +1148,9 @@ DO NOT extract:
 
 CONSOLIDATE related statements into ONE fact when possible."""
 
+# The example header's own source-language rule; removed again when an output language is configured.
+_EXAMPLES_SOURCE_LANGUAGE_NOTE = "; for non-English input, ALL output values MUST be in the input language"
+
 # Concise mode examples
 _CONCISE_EXAMPLES = """
 
@@ -1626,6 +1629,11 @@ def _build_extraction_prompt_and_schema(config) -> ExtractionPrompt:
         retain_mission_section=retain_mission_section,
         custom_instructions=custom_instructions,
     )
+
+    if config.llm_output_language:
+        # The examples' header tells the model non-English input keeps its language: the very rule
+        # default_language_section() drops when a language is configured.
+        prompt = prompt.replace(_EXAMPLES_SOURCE_LANGUAGE_NOTE, "")
 
     # Add causal relationships section if enabled
     # Verbatim mode never uses causal relations (no fact text to relate causally)
