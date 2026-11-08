@@ -26,9 +26,10 @@ PERSON_MODEL_PREFIX = "person:"
 #: rewrites the whole picture from the bank's memories and keeps a source on each line.
 PERSON_SOURCE_QUERY = (
     "Write the picture of the person {handle}, as sections with short bullet lines: "
-    "Who they are; Role and company; How they work and talk; Likes and dislikes; What they are working on; "
+    "Who they are; Role and company; How they want to be addressed and treated (what they asked for, corrected or objected to, in their words); Likes and dislikes; What they are working on; "
     "Open promises (to them and from them, with the date and who owes what); Who they work with. "
-    "Use only what the memories say about {handle}. Every line ends with its source in brackets: "
+    "Use only what the memories say about {handle}. Never record statistics or rates about how they write (emoji, message length, punctuation, how often or how rarely they use anything), and never state a style as a percentage or a count; "
+    "an emoji, a length or a tone is only worth a line when the person asked for or against it, and then say what they asked. Every line ends with its source in brackets: "
     "the source link (source_url) and the date it was said (said_at), as recorded in the memory's metadata. "
     "When a fact changed, state the latest one and put the earlier one under 'Earlier' with its date and source. "
     "Leave out a value that the CRM, Linear or Stripe holds; name the record (its pointer_kind and pointer_id) instead."
@@ -120,7 +121,7 @@ async def ensure_person_models(engine: Any, bank_id: str, request_context: "Requ
     wanted = {person_model_id(handle): handle for handle in handles}
     async with ctx.conn() as conn:
         existing = await conn.fetch(
-            "SELECT id, trigger FROM " + _mental_models_table() + " WHERE bank_id = $1 AND id = ANY($2::text[])",
+            "SELECT id, trigger, source_query FROM " + _mental_models_table() + " WHERE bank_id = $1 AND id = ANY($2::text[])",
             bank_id,
             list(wanted),
         )
@@ -145,14 +146,18 @@ async def ensure_person_models(engine: Any, bank_id: str, request_context: "Requ
                 "[PEOPLE] could not create the person model for %s in bank %s", handle, bank_id, exc_info=True
             )
     # A model made before the exclusion existed would keep reading the confidences: bring its trigger up to date.
+    # The same for the mission: a model made with an older source query is rewritten from the current one.
     for row in existing:
-        if leaves_out_confidences(row["trigger"]):
+        handle = handle_of(row["id"])
+        stale_query = handle is not None and row["source_query"] != PERSON_SOURCE_QUERY.format(handle=handle)
+        if leaves_out_confidences(row["trigger"]) and not stale_query:
             continue
         try:
             await engine.update_mental_model(
                 bank_id=bank_id,
                 mental_model_id=row["id"],
                 trigger=dict(PERSON_MODEL_TRIGGER),
+                **({"source_query": PERSON_SOURCE_QUERY.format(handle=handle)} if stale_query else {}),
                 request_context=request_context or ctx.request_context,
             )
         except Exception:

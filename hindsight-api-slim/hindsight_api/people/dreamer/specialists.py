@@ -808,6 +808,7 @@ Create inductive observations when you see patterns:
 ### Preferences
 - "Prefers morning meetings"
 - "Likes detailed technical explanations"
+- Never a count or rate of how they write (emoji, message length, punctuation): that is not a preference.
 
 ### Personality Traits
 - "Generally optimistic about outcomes"

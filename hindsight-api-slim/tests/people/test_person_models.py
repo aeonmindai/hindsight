@@ -61,13 +61,16 @@ async def test_a_person_model_covers_who_they_are_and_cites_sources(people_engin
     for section in (
         "Who they are",
         "Role and company",
-        "How they work and talk",
+        "How they want to be addressed and treated",
         "Likes and dislikes",
         "What they are working on",
         "Open promises",
         "Who they work with",
     ):
         assert section in model["source_query"]
+    # No statistics about how someone writes (emoji, length, punctuation): only what they asked for or against.
+    assert "Never record statistics or rates" in model["source_query"]
+    assert "How they work and talk" not in model["source_query"]
     assert "asha" in model["source_query"]
     assert "source_url" in model["source_query"] and "said_at" in model["source_query"]
     assert model["source_query"] == PERSON_SOURCE_QUERY.format(handle="asha")
@@ -227,6 +230,8 @@ async def test_a_model_made_before_the_exclusion_gets_its_trigger_updated(people
             "UPDATE mental_models SET trigger = '{\"refresh_after_consolidation\": true}'::jsonb WHERE bank_id = $1",
             bank_id,
         )
+    async with people_engine._pool.acquire() as conn:
+        await conn.execute("UPDATE mental_models SET source_query = 'How they work and talk' WHERE bank_id = $1", bank_id)
     (before,) = await _models(people_engine, bank_id)
     assert not leaves_out_confidences(before["trigger"])
 
@@ -235,6 +240,8 @@ async def test_a_model_made_before_the_exclusion_gets_its_trigger_updated(people
     assert created == []
     (after,) = await _models(people_engine, bank_id)
     assert leaves_out_confidences(after["trigger"])
+    # an older mission is rewritten from the current one, so the next refresh stops recording rates
+    assert after["source_query"] == PERSON_SOURCE_QUERY.format(handle="asha")
 
 
 def test_only_a_trigger_that_excludes_confidences_counts():

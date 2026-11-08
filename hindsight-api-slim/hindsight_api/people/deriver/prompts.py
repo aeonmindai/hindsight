@@ -112,6 +112,7 @@ RULES:
 - When the target peer answers a question or accepts a proposal from another peer ("yes", "the first one"), the details in that question or proposal count as stated by the target peer. A bare acknowledgement ("ok", "thanks") does not.
 - A batch may contain few or no `target="true"` messages, even when it holds many long messages from other peers (agent turns, tool output, system notices). In that case produce few or no conclusions.
 - For each observation, set `source_indices` to the `idx` values of the messages it rests on: the `target="true"` messages that state it, plus any `target="false"` message needed to interpret them (e.g. the question answered by "the first one"). Cite only messages that directly support the observation.
+- Do not record statistics or rates about how the peer writes (emoji, message length, punctuation, how often they use anything). Record how they want to be addressed or treated only when they say so.
 - Do not record conversational mechanics (greeting, thanking, acknowledging, asking or answering a question) or anything true of nearly every participant.
 - Each conclusion states exactly one independent fact. Keep a fact's reason, purpose, tool, place, and qualifiers attached to it; they are part of the same fact. Split when a conclusion joins independent facts, or when a clause adds a new fact about a person or thing.
 - Do not emit two conclusions that state the same fact in different words.
