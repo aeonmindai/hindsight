@@ -26,12 +26,14 @@ eventually-complete browsing rather than a consistent iterator. ``skip`` is appl
 from __future__ import annotations
 
 import json
+import os
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
+from ....config import ENV_CONSOLIDATION_NEWEST_FIRST
 from ...search.tags import (
     TagGroup,
     TagsMatch,
@@ -372,11 +374,12 @@ async def find_unconsolidated(
     limit: int,
     scope_tags: list[str] | None = None,
 ) -> list[StoredMemory]:
-    """Memories not yet folded into an observation, oldest first.
+    """Memories not yet folded into an observation, oldest first (newest first with ``HINDSIGHT_API_CONSOLIDATION_NEWEST_FIRST=true``).
 
     The consolidator's candidate query: never consolidated, never *failed* to
     consolidate (a memory the LLM could not handle must not be retried forever),
-    ordered by ``created_at`` so the queue drains in arrival order. ``scope_tags``
+    ordered by ``created_at`` so the queue drains in arrival order, or, newest first, so what was
+    said an hour ago is consolidated before a backlog from last week. ``scope_tags``
     is the same ``tags @> scope`` containment the job's scope filter uses — the
     job ORs several scopes together; one scope is passed here.
     """
@@ -399,7 +402,7 @@ async def find_unconsolidated(
         SELECT {_MEMORY_COLUMNS}
         FROM {fq_table("memory_units")}
         WHERE {" AND ".join(where)}
-        ORDER BY created_at ASC
+        ORDER BY created_at {"DESC" if os.getenv(ENV_CONSOLIDATION_NEWEST_FIRST, "").lower() == "true" else "ASC"}
         LIMIT ${len(params)}
         """,
         *params,

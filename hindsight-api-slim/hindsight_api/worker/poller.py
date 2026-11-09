@@ -27,6 +27,8 @@ from ..config import (
     ENV_CONSOLIDATION_WALL_TIMEOUT,
     ENV_REFLECT_WALL_TIMEOUT,
     ENV_RETAIN_WALL_TIMEOUT,
+    ENV_WORKER_CONSOLIDATION_HOLD_FILE,
+    ENV_WORKER_CONSOLIDATION_MIN_GAP_SECONDS,
     get_config,
 )
 from ..engine.permit_wait import excluding_permit_wait
@@ -461,6 +463,14 @@ class WorkerPoller:
         self._active_tasks: dict[str, ActiveTaskInfo] = {}
         # Track in-flight tasks by operation type
         self._in_flight_by_type: dict[str, int] = {}
+        # Holding consolidation back (not the worker): the hold file's `until` and the gap since the last consolidation ended.
+        # Everything else (retain, extraction, mental-model refresh) is claimed as before.
+        self._consolidation_hold_file: str | None = os.getenv(ENV_WORKER_CONSOLIDATION_HOLD_FILE) or None
+        self._consolidation_min_gap_seconds: float = max(
+            0.0, float(os.getenv(ENV_WORKER_CONSOLIDATION_MIN_GAP_SECONDS) or 0)
+        )
+        self._last_consolidation_end: float = float("-inf")
+        self._consolidation_held_logged: str | None = None
         # Rotation offset for per-tenant fair claiming. Advances past the last
         # schema we serviced so a busy tenant can't monopolize the poll order.
         self._next_schema_idx: int = 0
@@ -737,6 +747,29 @@ class WorkerPoller:
 
         return all_tasks
 
+    def _consolidation_hold_reason(self) -> str | None:
+        """Why no consolidation is claimed this cycle, or None when it may be.
+
+        A hold is a file with an ``until`` time: it holds only while that time is in the future, so a hold nobody
+        lifted ends by itself. A missing, unreadable or malformed file holds nothing: the hold must never be the
+        reason consolidation stays off.
+        """
+        if self._consolidation_hold_file:
+            try:
+                with open(self._consolidation_hold_file, encoding="utf-8") as f:
+                    until = datetime.fromisoformat(str(json.load(f)["until"]).replace("Z", "+00:00"))
+                if until.tzinfo is None:
+                    until = until.replace(tzinfo=timezone.utc)
+                if until > datetime.now(timezone.utc):
+                    return f"held until {until.isoformat()}"
+            except (OSError, ValueError, KeyError, TypeError):
+                pass
+        if self._consolidation_min_gap_seconds > 0:
+            wait = self._last_consolidation_end + self._consolidation_min_gap_seconds - time.monotonic()
+            if wait > 0:
+                return f"{wait:.0f}s left of the gap after the last consolidation"
+        return None
+
     async def _claim_batch_for_schema(
         self,
         conn: "DatabaseConnection",
@@ -770,6 +803,10 @@ class WorkerPoller:
         claim commits, not for the whole cycle.
         """
         table = fq_table("async_operations", schema)
+        held = self._consolidation_hold_reason()
+        if (held is None) != (self._consolidation_held_logged is None):
+            self._consolidation_held_logged = held
+            logger.info(f"Worker {self._worker_id}: consolidation {'claimed again' if held is None else held}")
 
         async with conn.transaction():
             claimed = await self._backend.ops.claim_tasks(
@@ -780,6 +817,7 @@ class WorkerPoller:
                 shared_limit,
                 bank_cursor=self._next_bank_cursor.get(schema, ""),
                 consolidation_bank_priority=self._consolidation_bank_priority,
+                claim_consolidation=held is None,
             )
             # Where the rotation got to. Carried across claims per schema, the
             # way _next_schema_idx is across tenants; the claim query itself
@@ -1221,6 +1259,8 @@ class WorkerPoller:
                     self._in_flight_by_type[operation_type] = count - 1
                     if self._in_flight_by_type[operation_type] == 0:
                         del self._in_flight_by_type[operation_type]
+                if operation_type == "consolidation":
+                    self._last_consolidation_end = time.monotonic()
                 self._slot_freed.set()
 
     async def _run_executor(self, task: ClaimedTask, task_type: str, holder: StageHolder | None = None) -> None:

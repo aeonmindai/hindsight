@@ -1,8 +1,9 @@
 """Person models: one mental model, ``person:<handle>``, for every person the bank knows.
 
 After each consolidation :func:`ensure_person_models` gives every peer without one a model, with no one
-asking. The model is created with ``refresh_after_consolidation`` on, so the consolidation that follows
-rewrites it (a changed fact shows in it after the next consolidation). Its first content is built from
+asking. The model is created with a refresh every 6 hours (``refresh_cron``; the refresh runs only when the bank has new memories in the
+model's scope), not after a consolidation: consolidation can lag or be held back for days and the model must not wait for it (a changed fact
+shows in it at the next tick). Its first content is built from
 what the deriver and the dreamer already concluded about the person, each line with its source.
 """
 
@@ -38,11 +39,13 @@ PERSON_SOURCE_QUERY = (
 #: The tag Neo puts on a confidence (what someone asked him to keep between them) and on the messages it covers.
 CONFIDENCE_TAG = "confidence"
 
-#: How a person model is refreshed: after each consolidation, from the memories that are not confidences, and not
+#: How a person model is refreshed: on a clock, every 6 hours when something new was said (never tied to consolidation catching up: on 8 Nov a 58k
+#: consolidation backlog kept every model from refreshing for a day), from the memories that are not confidences, and not
 #: from other mental models (a model built from memories would otherwise carry a confidence into this one). A person
 #: model is shown to every agent, so a confidence must never be in it.
+PERSON_MODEL_REFRESH_CRON = "0 */6 * * *"
 PERSON_MODEL_TRIGGER: dict[str, Any] = {
-    "refresh_after_consolidation": True,
+    "refresh_cron": PERSON_MODEL_REFRESH_CRON,
     "exclude_mental_models": True,
     "tag_groups": [{"not": {"tags": [CONFIDENCE_TAG], "match": "any_strict"}}],
 }
@@ -58,6 +61,20 @@ def leaves_out_confidences(trigger: Any) -> bool:
     if not isinstance(trigger, dict):
         return False
     return bool(trigger.get("exclude_mental_models")) and PERSON_MODEL_TRIGGER["tag_groups"] == trigger.get("tag_groups")
+
+
+def refreshes_on_clock(trigger: Any) -> bool:
+    """Whether a stored trigger already refreshes on the person-model clock and leaves confidences out."""
+    if isinstance(trigger, str):
+        try:
+            trigger = json.loads(trigger)
+        except ValueError:
+            return False
+    return (
+        leaves_out_confidences(trigger)
+        and trigger.get("refresh_cron") == PERSON_MODEL_REFRESH_CRON
+        and not trigger.get("refresh_after_consolidation")
+    )
 
 
 def person_model_id(handle: str) -> str:
@@ -145,12 +162,12 @@ async def ensure_person_models(engine: Any, bank_id: str, request_context: "Requ
             logger.warning(
                 "[PEOPLE] could not create the person model for %s in bank %s", handle, bank_id, exc_info=True
             )
-    # A model made before the exclusion existed would keep reading the confidences: bring its trigger up to date.
+    # A model made before the exclusion existed would keep reading the confidences, and one still refreshing after consolidation would wait for it: bring its trigger up to date.
     # The same for the mission: a model made with an older source query is rewritten from the current one.
     for row in existing:
         handle = handle_of(row["id"])
         stale_query = handle is not None and row["source_query"] != PERSON_SOURCE_QUERY.format(handle=handle)
-        if leaves_out_confidences(row["trigger"]) and not stale_query:
+        if refreshes_on_clock(row["trigger"]) and not stale_query:
             continue
         try:
             await engine.update_mental_model(

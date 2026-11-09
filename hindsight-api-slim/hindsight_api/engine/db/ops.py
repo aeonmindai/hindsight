@@ -979,6 +979,7 @@ class DataAccessOps(ABC):
         *,
         bank_cursor: str = "",
         consolidation_bank_priority: dict[str, int] | None = None,
+        claim_consolidation: bool = True,
     ) -> ClaimedOperations:
         """Claim pending tasks from the async_operations table.
 
@@ -1009,6 +1010,9 @@ class DataAccessOps(ABC):
                 A bare ``*`` key is the catch-all default for unlisted banks.
                 When set, consolidation tasks are claimed in priority tiers.
                 None preserves current behavior (pure created_at ordering).
+            claim_consolidation: False leaves every consolidation row pending this cycle, in the
+                reserved pool and the shared pool alike (the worker holds consolidation back
+                while it is paused or throttled; every other operation type is unaffected).
 
         Returns the claimed rows — operation_id, operation_type, task_payload,
         retry_count, bank_id and serialization_key — together with the rotation's

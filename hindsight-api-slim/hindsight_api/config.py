@@ -1147,6 +1147,13 @@ def _parse_worker_slot_reservations() -> dict[str, int]:
 
 
 ENV_WORKER_CONSOLIDATION_BANK_PRIORITY = "HINDSIGHT_API_WORKER_CONSOLIDATION_BANK_PRIORITY"
+# Holding consolidation back without touching anything else the worker does (retain, extraction, mental-model refresh keep running):
+# a JSON file {"until": "<ISO time>"} that, while `until` is in the future, makes the worker claim no consolidation (the hold ends by itself
+# at `until`; a missing or unreadable file holds nothing), and a minimum gap in seconds between the end of one consolidation round and the claim of the next.
+ENV_WORKER_CONSOLIDATION_HOLD_FILE = "HINDSIGHT_API_WORKER_CONSOLIDATION_HOLD_FILE"
+ENV_WORKER_CONSOLIDATION_MIN_GAP_SECONDS = "HINDSIGHT_API_WORKER_CONSOLIDATION_MIN_GAP_SECONDS"
+# Consolidate the newest unconsolidated facts first (a fact said an hour ago is consolidated before a backlog from last week).
+ENV_CONSOLIDATION_NEWEST_FIRST = "HINDSIGHT_API_CONSOLIDATION_NEWEST_FIRST"
 ENV_RETAIN_MAX_CONCURRENT = "HINDSIGHT_API_RETAIN_MAX_CONCURRENT"
 ENV_RETAIN_SUBBATCH_CONCURRENCY = "HINDSIGHT_API_RETAIN_SUBBATCH_CONCURRENCY"
 ENV_RETAIN_STORE_MAX_CONCURRENT = "HINDSIGHT_API_RETAIN_STORE_MAX_CONCURRENT"

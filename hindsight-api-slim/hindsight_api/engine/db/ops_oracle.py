@@ -1578,6 +1578,7 @@ class OracleOps(DataAccessOps):
         *,
         bank_cursor="",
         consolidation_bank_priority=None,
+        claim_consolidation=True,
     ):
         all_rows = []
         claimed_ids = []
@@ -1594,6 +1595,8 @@ class OracleOps(DataAccessOps):
             if limit <= 0:
                 continue
 
+            if op_type == "consolidation" and not claim_consolidation:
+                continue
             if op_type == "consolidation":
                 _collect(
                     await self._claim_consolidation_tasks(
@@ -1616,7 +1619,7 @@ class OracleOps(DataAccessOps):
             remaining_shared -= _collect(await self._claim_shared_tasks(conn, table, claimed_ids, remaining_shared))
 
             # 2b. Consolidation tasks (with bank-serialization + optional priority)
-            if remaining_shared > 0:
+            if remaining_shared > 0 and claim_consolidation:
                 _collect(
                     await self._claim_consolidation_tasks(
                         conn,

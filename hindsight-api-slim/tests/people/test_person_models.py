@@ -12,12 +12,15 @@ from hindsight_api.people.context import PeopleContext
 from hindsight_api.people.peers import get_or_create_peers
 from hindsight_api.people.person_models import (
     CONFIDENCE_TAG,
+    PERSON_MODEL_REFRESH_CRON,
+    PERSON_MODEL_TRIGGER,
     PERSON_SOURCE_QUERY,
     ensure_person_models,
     handle_of,
     leaves_out_confidences,
     person_model_content,
     person_model_id,
+    refreshes_on_clock,
 )
 from hindsight_api.people.runtime import after_retain, incoming_messages
 from tests.people.people_helpers import add_message, add_session, make_doc
@@ -45,8 +48,8 @@ async def test_every_new_person_gets_a_person_model_with_nobody_asking(people_en
     assert [m["name"] for m in models] == ["person:asha", "person:dev"]
     assert [handle_of(m["id"]) for m in models] == ["asha", "dev"]
     for model in models:
-        assert "refresh_after_consolidation" in str(model["trigger"])
-        assert "true" in str(model["trigger"]).lower()
+        assert PERSON_MODEL_REFRESH_CRON in str(model["trigger"])
+        assert "refresh_after_consolidation" not in str(model["trigger"])
         # A person model is shown to every agent: it never reads a confidence, nor another model that might carry one.
         assert leaves_out_confidences(model["trigger"])
         assert CONFIDENCE_TAG in str(model["trigger"])
@@ -240,6 +243,8 @@ async def test_a_model_made_before_the_exclusion_gets_its_trigger_updated(people
     assert created == []
     (after,) = await _models(people_engine, bank_id)
     assert leaves_out_confidences(after["trigger"])
+    # one still refreshing after consolidation moves to the clock: it must not wait for a consolidation backlog
+    assert refreshes_on_clock(after["trigger"])
     # an older mission is rewritten from the current one, so the next refresh stops recording rates
     assert after["source_query"] == PERSON_SOURCE_QUERY.format(handle="asha")
 
@@ -251,3 +256,14 @@ def test_only_a_trigger_that_excludes_confidences_counts():
     assert leaves_out_confidences(
         {"exclude_mental_models": True, "tag_groups": [{"not": {"tags": ["confidence"], "match": "any_strict"}}]}
     )
+
+
+def test_a_trigger_that_waits_for_consolidation_is_not_the_clock():
+    after_consolidation = {
+        "refresh_after_consolidation": True,
+        "exclude_mental_models": True,
+        "tag_groups": [{"not": {"tags": ["confidence"], "match": "any_strict"}}],
+    }
+    assert leaves_out_confidences(after_consolidation)
+    assert not refreshes_on_clock(after_consolidation)
+    assert refreshes_on_clock(PERSON_MODEL_TRIGGER)
