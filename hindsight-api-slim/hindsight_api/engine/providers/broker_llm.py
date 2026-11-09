@@ -16,6 +16,7 @@ the way the gateway does, ``<provider>/<model>``:
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any
 
@@ -53,12 +54,14 @@ def gateway_root(base_url: str) -> str:
 
 
 class RefusalFallbackLLM(LLMInterface):
-    """A broker model that hands a call it refused to a second broker model.
+    """A broker model that hands a call it refused, or could not answer in JSON, to a second broker model.
 
     A refusal (the gateway's ``502 Refusal (cyber)``, or a refusal stop reason) is a function of the
     content: retrying the same model repeats it, and without a fallback the message is never
-    extracted. The fallback model sees the same request; if it refuses too, the primary's refusal is
-    raised. Every other error passes through untouched.
+    extracted. So is a reply that is still not JSON after the provider's own retries (an empty reply or
+    prose where the schema asked for JSON, which is what a model that declines a message without saying so
+    sends back: 38 retains failed that way on 8 Nov and no retry ever got through). The fallback model sees
+    the same request; if it fails the same way, the primary's error is raised. Every other error passes through untouched.
     """
 
     def __init__(self, primary: LLMInterface, fallback: LLMInterface) -> None:
@@ -80,7 +83,7 @@ class RefusalFallbackLLM(LLMInterface):
         try:
             return await self.primary.call(messages, *args, **kwargs)
         except Exception as error:
-            if not (isinstance(error, ProviderContentPolicyError) or is_gateway_refusal(error)):
+            if not (isinstance(error, (ProviderContentPolicyError, json.JSONDecodeError)) or is_gateway_refusal(error)):
                 raise
             scope = kwargs.get("scope", "memory")
             logger.warning(
@@ -93,7 +96,7 @@ class RefusalFallbackLLM(LLMInterface):
             try:
                 return await self.fallback.call(messages, *args, **kwargs)
             except Exception as fallback_error:
-                if isinstance(fallback_error, ProviderContentPolicyError) or is_gateway_refusal(fallback_error):
+                if isinstance(fallback_error, (ProviderContentPolicyError, json.JSONDecodeError)) or is_gateway_refusal(fallback_error):
                     raise error from fallback_error
                 raise
 
